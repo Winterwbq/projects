@@ -1,0 +1,76 @@
+//* This file is part of the MOOSE framework
+//* https://mooseframework.inl.gov
+//*
+//* All rights reserved, see COPYRIGHT for full restrictions
+//* https://github.com/idaholab/moose/blob/master/COPYRIGHT
+//*
+//* Licensed under LGPL 2.1, please see LICENSE for details
+//* https://www.gnu.org/licenses/lgpl-2.1.html
+
+#pragma once
+
+// MOOSE includes
+#include "MooseObjectWarehouse.h"
+
+// Forward declarations
+class MaterialBase;
+
+/**
+ * MaterialBase objects are special in that they have additional objects created automatically (see
+ * FEProblemBase::addMaterial).
+ *
+ * This class specializes the base class to acount for the additional Neightbor and face objects
+ * that may
+ * exist.
+ */
+class MaterialWarehouse : public MooseObjectWarehouse<MaterialBase>
+{
+public:
+  const MooseObjectWarehouse<MaterialBase> & operator[](Moose::MaterialDataType data_type) const;
+
+  ///@{
+  /**
+   * Convenience methods for calling object setup methods that handle the extra neighbor and face
+   * objects.
+   */
+  virtual void initialSetup(THREAD_ID tid = 0) const override;
+  virtual void timestepSetup(THREAD_ID tid = 0) const override;
+  virtual void subdomainSetup(THREAD_ID tid = 0) const override;
+  virtual void subdomainSetup(SubdomainID id, THREAD_ID tid = 0) const override;
+  virtual void neighborSubdomainSetup(THREAD_ID tid = 0) const;
+  virtual void neighborSubdomainSetup(SubdomainID id, THREAD_ID tid = 0) const;
+  virtual void jacobianSetup(THREAD_ID tid = 0) const override;
+  virtual void residualSetup(THREAD_ID tid = 0) const override;
+  virtual void updateActive(THREAD_ID tid = 0) override;
+  /**
+   * By default, this method only sorts block and boundary-wise object storages that are used by the
+   * MOOSE threaded element loops. Kokkos, however, computes all elements and faces at once
+   * regardless of block and boundary and uses all-object storages. Therefore, the Kokkos material
+   * warehouse sets \p sort_all_objects to true to sort the all-object storages.
+   */
+  void sort(THREAD_ID tid = 0, bool sort_all_objects = false);
+  ///@}
+
+  /**
+   * A special method unique to this class for adding Block, Neighbor, and Face material objects.
+   */
+  void addObjects(std::shared_ptr<MaterialBase> block,
+                  std::shared_ptr<MaterialBase> neighbor,
+                  std::shared_ptr<MaterialBase> face,
+                  THREAD_ID tid = 0);
+
+protected:
+  /// Storage for neighbor material objects (Block are stored in the base class)
+  MooseObjectWarehouse<MaterialBase> _neighbor_materials;
+
+  /// Storage for face material objects (Block are stored in the base class)
+  MooseObjectWarehouse<MaterialBase> _face_materials;
+
+  /**
+   * Helper method for updating material property dependency vector
+   */
+  virtual void
+  updateMatPropDependencyHelper(std::unordered_set<unsigned int> & needed_mat_props,
+                                const std::vector<std::shared_ptr<MaterialBase>> & objects,
+                                const bool producer_only) const override;
+};

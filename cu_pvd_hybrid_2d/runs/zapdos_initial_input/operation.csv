@@ -1,0 +1,2 @@
+target_bias_V,plasma_potential_guess_V,target_current_A,target_power_W,wafer_rf_amplitude_V,wafer_rf_frequency_Hz,wafer_rf_ramp_time_s,pressure_Cu_Torr
+-730.0,10.0,53.0,38000.0,50.0,13.56e6,2e-07,4e-06

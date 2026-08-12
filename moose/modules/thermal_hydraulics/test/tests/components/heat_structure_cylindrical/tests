@@ -1,0 +1,37 @@
+[Tests]
+  design = 'HeatStructureCylindrical.md'
+  issues = '#19830'
+
+  [physics]
+    requirement = 'The system shall simulate a 2D cylindrical heat structure'
+
+    [by_materials]
+      type = Exodiff
+      input = 'by_materials.i'
+      exodiff = 'transient.e'
+      custom_cmp = 'transient.exodiff'
+      detail = 'in a transient problem, with properties defined by Materials.'
+    []
+    [by_solid_properties]
+      type = Exodiff
+      input = 'by_solid_properties.i'
+      exodiff = 'transient.e'
+      custom_cmp = 'transient.exodiff'
+      prereq = 'physics/by_materials'
+      detail = 'in a transient problem, with properties defined by SolidProperties.'
+    []
+    [steady]
+      type = Exodiff
+      input = 'steady.i'
+      exodiff = 'steady_out.e'
+      detail = 'in a steady problem.'
+    []
+  []
+
+  [components_convergence]
+    type = Exodiff
+    input = 'components_convergence.i'
+    exodiff = 'components_convergence.e'
+    requirement = 'The system shall allow convergence of a heat structure to be assessed using ComponentsConvergence.'
+  []
+[]

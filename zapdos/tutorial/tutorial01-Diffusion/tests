@@ -1,0 +1,8 @@
+[Tests]
+  [tutorial01-Diffusion]
+    type = Exodiff
+    input = 'diffusion-only.i'
+    exodiff = 'diffusion-only_out.e'
+    group = 'tutorial'
+  []
+[]

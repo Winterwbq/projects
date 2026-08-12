@@ -1,0 +1,534 @@
+// The libMesh Finite Element Library.
+// Copyright (C) 2002-2026 Benjamin S. Kirk, John W. Peterson, Roy H. Stogner
+
+// This library is free software; you can redistribute it and/or
+// modify it under the terms of the GNU Lesser General Public
+// License as published by the Free Software Foundation; either
+// version 2.1 of the License, or (at your option) any later version.
+
+// This library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+// Lesser General Public License for more details.
+
+// You should have received a copy of the GNU Lesser General Public
+// License along with this library; if not, write to the Free Software
+// Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+
+#include "libmesh/libmesh_common.h"
+
+#ifdef LIBMESH_HAVE_PETSC
+
+// Local Includes
+#include "libmesh/petsc_preconditioner.h"
+#include "libmesh/petsc_macro.h"
+#include "libmesh/petsc_matrix.h"
+#include "libmesh/petsc_vector.h"
+#include "libmesh/libmesh_common.h"
+#include "libmesh/enum_preconditioner_type.h"
+#include "libmesh/elem.h"
+#include "libmesh/equation_systems.h"
+#include "libmesh/dof_map.h"
+
+namespace libMesh
+{
+
+template <typename T>
+PetscPreconditioner<T>::PetscPreconditioner (const libMesh::Parallel::Communicator & comm_in) :
+  Preconditioner<T>(comm_in)
+{}
+
+
+
+template <typename T>
+void PetscPreconditioner<T>::apply(const NumericVector<T> & x, NumericVector<T> & y)
+{
+  PetscVector<T> & x_pvec = cast_ref<PetscVector<T> &>(const_cast<NumericVector<T> &>(x));
+  PetscVector<T> & y_pvec = cast_ref<PetscVector<T> &>(const_cast<NumericVector<T> &>(y));
+
+  Vec x_vec = x_pvec.vec();
+  Vec y_vec = y_pvec.vec();
+
+  LibmeshPetscCall(PCApply(_pc, x_vec, y_vec));
+}
+
+
+
+
+template <typename T>
+void PetscPreconditioner<T>::init ()
+{
+  libmesh_error_msg_if(!this->_matrix, "ERROR: No matrix set for PetscPreconditioner, but init() called");
+
+  // Clear the preconditioner in case it has been created in the past
+  if (!this->_is_initialized)
+    {
+      // Should probably use PCReset(), but it's not working at the moment so we'll destroy instead
+      if (_pc)
+        _pc.destroy();
+
+      LibmeshPetscCall(PCCreate(this->comm().get(), _pc.get()));
+
+      auto pmatrix = cast_ptr<PetscMatrixBase<T> *>(this->_matrix);
+      _mat = pmatrix->mat();
+    }
+
+  LibmeshPetscCall(PCSetOperators(_pc, _mat, _mat));
+
+  // Set the PCType.  Note: this used to be done *before* the call to
+  // PCSetOperators(), and only when !_is_initialized, but
+  // 1.) Some preconditioners (those employing sub-preconditioners,
+  // for example) have to call PCSetUp(), and can only do this after
+  // the operators have been set.
+  // 2.) It should be safe to call set_petsc_preconditioner_type()
+  // multiple times.
+  set_petsc_preconditioner_type(this->_preconditioner_type, *_pc);
+
+  this->_is_initialized = true;
+}
+
+
+
+template <typename T>
+void PetscPreconditioner<T>::clear()
+{
+  // Calls custom deleter
+  _pc.destroy();
+}
+
+
+
+template <typename T>
+PC PetscPreconditioner<T>::pc()
+{
+  return _pc;
+}
+
+
+
+template <typename T>
+void PetscPreconditioner<T>::set_petsc_preconditioner_type (const PreconditionerType & preconditioner_type, PC & pc)
+{
+  // get the communicator from the PETSc object
+  Parallel::communicator comm;
+  PetscErrorCode ierr = PetscObjectGetComm((PetscObject)pc, & comm);
+  if (ierr != LIBMESH_PETSC_SUCCESS)
+    libmesh_error_msg("Error retrieving communicator");
+
+  #define CasePCSetType(PreconditionerType, PCType)                       \
+  case PreconditionerType:                                                \
+    LibmeshPetscCallA(comm, PCSetType (pc, const_cast<KSPType>(PCType))); \
+    break;
+
+  switch (preconditioner_type)
+    {
+    CasePCSetType(IDENTITY_PRECOND,     PCNONE)
+    CasePCSetType(CHOLESKY_PRECOND,     PCCHOLESKY)
+    CasePCSetType(ICC_PRECOND,          PCICC)
+    CasePCSetType(ILU_PRECOND,          PCILU)
+    CasePCSetType(LU_PRECOND,           PCLU)
+    CasePCSetType(ASM_PRECOND,          PCASM)
+    CasePCSetType(JACOBI_PRECOND,       PCJACOBI)
+    CasePCSetType(BLOCK_JACOBI_PRECOND, PCBJACOBI)
+    CasePCSetType(SOR_PRECOND,          PCSOR)
+    CasePCSetType(EISENSTAT_PRECOND,    PCEISENSTAT)
+    CasePCSetType(AMG_PRECOND,          PCHYPRE)
+    CasePCSetType(SVD_PRECOND,          PCSVD)
+    CasePCSetType(USER_PRECOND,         PCMAT)
+    CasePCSetType(SHELL_PRECOND,        PCSHELL)
+
+    default:
+      libMesh::err << "ERROR:  Unsupported PETSC Preconditioner: "
+                   << Utility::enum_to_string(preconditioner_type) << std::endl
+                   << "Continuing with PETSC defaults" << std::endl;
+    }
+
+  // Set additional options if we are doing AMG and
+  // HYPRE is available
+#ifdef LIBMESH_HAVE_PETSC_HYPRE
+  if (preconditioner_type == AMG_PRECOND)
+    LibmeshPetscCallA(comm, PCHYPRESetType(pc, "boomeramg"));
+#endif
+
+  // Let the commandline override stuff
+  LibmeshPetscCallA(comm, PCSetFromOptions(pc));
+}
+
+
+
+#ifdef LIBMESH_HAVE_PETSC_HYPRE
+template <typename T>
+void PetscPreconditioner<T>::set_petsc_aux_data(PC & pc, System & sys, const unsigned v)
+{
+  // Get the communicator from the PETSc object
+  Parallel::communicator comm;
+  PetscErrorCode ierr = PetscObjectGetComm((PetscObject)pc, &comm);
+  libmesh_error_msg_if(ierr != LIBMESH_PETSC_SUCCESS,
+                       "Error retrieving communicator");
+
+  // Make sure the preconditioner options are set
+  LibmeshPetscCallA(comm, PCSetFromOptions(pc));
+
+  // Get the type of preconditioner we are using
+  PCType pc_type = nullptr;
+  LibmeshPetscCallA(comm, PCGetType(pc, &pc_type));
+
+  // Check if hypre ams/ads, otherwise we quit with nothing to do
+  if (pc_type && std::string(pc_type) == PCHYPRE)
+  {
+    // Get the hypre preconditioner we are using
+    PCType hypre_type = nullptr;
+    LibmeshPetscCallA(comm, PCHYPREGetType(pc, &hypre_type));
+
+    // If not ams/ads, we quit with nothing to do
+    if (std::string(hypre_type) == "ams")
+    {
+      // If multiple variables, we error out as senseless
+      libmesh_error_msg_if(sys.n_vars() > 1,
+                           "Error applying hypre AMS to a system with multiple "
+                           "variables");
+      // If not a 1st order Nédélec or a 2d 1st order Raviart-Thomas system, we
+      // error out as we do not support anything else at the moment
+      libmesh_error_msg_if(sys.variable(v).type() != FEType(1, NEDELEC_ONE) &&
+                          (sys.variable(v).type() != FEType(1, RAVIART_THOMAS) ||
+                           sys.get_mesh().mesh_dimension() != 2),
+                           "Error applying hypre AMS to a system "
+                           "whose variable is not 1st order Nedelec or 1st "
+                           "order Raviart-Thomas on a 2d mesh");
+      set_hypre_ams_data(pc, sys, v);
+    }
+    else if (std::string(hypre_type) == "ads")
+    {
+      // If multiple variables, we error out as senseless
+      libmesh_error_msg_if(sys.n_vars() > 1,
+                           "Error applying hypre ADS to a system with multiple "
+                           "variables");
+      // If not a 3d 1st order Raviart-Thomas system, we error out as we do not
+      // support anything else at the moment
+      libmesh_error_msg_if(sys.variable(v).type() != FEType(1, RAVIART_THOMAS) ||
+                           sys.get_mesh().mesh_dimension() != 3,
+                           "Error applying hypre ADS to a system "
+                           "whose variable is not 1st "
+                           "order Raviart-Thomas on a 3d mesh");
+      set_hypre_ads_data(pc, sys, v);
+    }
+  }
+}
+
+
+
+template <typename T>
+void PetscPreconditioner<T>::set_hypre_ams_data(PC & pc, System & sys, const unsigned v)
+{
+  // Get the communicator from the PETSc object
+  Parallel::communicator comm;
+  PetscErrorCode ierr = PetscObjectGetComm((PetscObject)pc, &comm);
+  libmesh_error_msg_if(ierr != LIBMESH_PETSC_SUCCESS,
+                       "Error retrieving communicator");
+  Parallel::Communicator Comm(comm);
+
+  // The mesh/problem dimension
+  const unsigned dim = sys.get_mesh().mesh_dimension();
+
+  // Dummy Lagrange system defined over the same mesh so we can enumerate the vertices
+  System & lagrange_sys = sys.get_equation_systems().add_system<System>("__hypre_ams_vertices");
+  lagrange_sys.hide_output() = true;
+  lagrange_sys.add_variable("__lagrange");
+  lagrange_sys.reinit_mesh();
+
+  // Global (i.e. total) and local (i.e. to this processor) number of edges and vertices
+  const std::vector<dof_id_type> n_all_edges = sys.get_dof_map().n_dofs_per_processor(v);
+  const dof_id_type n_glb_edges = std::accumulate(n_all_edges.begin(), n_all_edges.end(), 0);
+  const dof_id_type n_loc_edges = n_all_edges[global_processor_id()];
+  const dof_id_type n_glb_verts = lagrange_sys.n_dofs();
+  const dof_id_type n_loc_verts = lagrange_sys.n_local_dofs();
+
+  // We require local indexing through the vertices and contiguous indexing
+  // through the edges: since the vertices are enumerated on their own system,
+  // a local index can simply be obtained by subtracting those vertices in all
+  // preceding processors; for the edges, if the system we are given by the
+  // user has multiple variables/splits, we effectively need to add local edge
+  // numbers to those edges in all preceding processors
+
+  // The number of vertices and edges in all preceding processors
+  dof_id_signed_type vert_offset = -lagrange_sys.get_dof_map().first_dof();
+  dof_id_signed_type edge_offset =
+    std::accumulate(n_all_edges.begin(), n_all_edges.begin() + global_processor_id(), 0);
+
+  // Whether dofs are in variable-major or node-major order
+  bool var_major = !libMesh::on_command_line("--node-major-dofs");
+
+  // If variable-major order, we need only subtract all the preceding dofs; but
+  // if node-major order, we need to enumerate the dofs on this processor
+  std::vector<dof_id_type> idx_edges;
+  if (var_major)
+  {
+    edge_offset -= sys.get_dof_map().first_dof();
+    for (auto i : make_range(v))
+      edge_offset -= sys.get_dof_map().n_local_dofs(i);
+  }
+  else
+    sys.get_dof_map().local_variable_indices(idx_edges, sys.get_mesh(), v);
+
+  // Create the discrete grandient matrix, representing the edges in terms of its vertices
+  // Preallocate 2 diagonal + 2 off-diagonal nonzeros as the vertices could fall on either
+  PetscMatrix<Real> G(Comm, n_glb_edges, n_glb_verts, n_loc_edges, n_loc_verts, 2, 2);
+
+  // Create array for the coordinates of the local vertices
+  PetscReal * coords;
+  LibmeshPetscCallA(comm, PetscMalloc1(dim * n_loc_verts, &coords));
+
+  // Populate the discrete gradient matrix and the coordinates array
+  for (const auto & elem : sys.get_mesh().active_local_element_ptr_range())
+    for (auto edge : make_range(elem->n_edges()))
+    {
+      // The edge's two vertices
+      dof_id_type vert_dofs[2];
+      for (auto vert : make_range(2))
+      {
+        const unsigned loc_vert_node_id = elem->local_edge_node(edge, vert);
+        libmesh_assert(elem->is_vertex(loc_vert_node_id));
+
+        const Node & vert_node = elem->node_ref(loc_vert_node_id);
+        vert_dofs[vert] = vert_node.dof_number(lagrange_sys.number(), 0, 0);
+
+        // If owned, populate coordinates array
+        if (vert_node.processor_id() == global_processor_id())
+        {
+          const dof_id_type loc_vert_dof = vert_offset + vert_dofs[vert];
+          libmesh_assert(loc_vert_dof <  n_loc_verts);
+
+          for (auto d : make_range(dim))
+            coords[dim * loc_vert_dof + d] = vert_node(d);
+        }
+      }
+
+      // The edge's (middle) node
+      const unsigned loc_edge_node_id = elem->local_edge_node(edge, 2);
+      libmesh_assert(elem->is_edge(loc_edge_node_id));
+
+      const Node & edge_node = elem->node_ref(loc_edge_node_id);
+
+      // If owned, populate discrete gradient matrix
+      if (edge_node.processor_id() == global_processor_id())
+      {
+        const dof_id_type edge_dof = edge_node.dof_number(sys.number(), v, 0);
+
+        const dof_id_type cont_edge_dof = edge_offset +
+          (var_major ? edge_dof
+                     : std::distance(idx_edges.begin(),
+                       std::find(idx_edges.begin(), idx_edges.end(), edge_dof)));
+
+        const Real sign = elem->positive_edge_orientation(edge) ? 1 : -1;
+
+        libmesh_assert(cont_edge_dof >= G.row_start());
+        libmesh_assert(cont_edge_dof <  G.row_stop());
+        G.set(cont_edge_dof, vert_dofs[0],  sign);
+        G.set(cont_edge_dof, vert_dofs[1], -sign);
+      }
+    }
+
+  // Assemble the discrete gradient matrix
+  G.close();
+
+  // Hand over the matrix and coordinates array
+  LibmeshPetscCallA(comm, PCHYPRESetDiscreteGradient(pc, G.mat()));
+  LibmeshPetscCallA(comm, PCSetCoordinates(pc, dim, n_loc_verts, coords));
+
+  // Free allocated memory for the coordinates array
+  LibmeshPetscCallA(comm, PetscFree(coords));
+}
+
+
+
+template <typename T>
+void PetscPreconditioner<T>::set_hypre_ads_data(PC & pc, System & sys, const unsigned v)
+{
+  // Get the communicator from the PETSc object
+  Parallel::communicator comm;
+  PetscErrorCode ierr = PetscObjectGetComm((PetscObject)pc, &comm);
+  libmesh_error_msg_if(ierr != LIBMESH_PETSC_SUCCESS,
+                       "Error retrieving communicator");
+  Parallel::Communicator Comm(comm);
+
+  // The mesh/problem dimension
+  const unsigned dim = sys.get_mesh().mesh_dimension();
+
+  // Dummy Lagrange and Nédélec systems defined over the same mesh so we can
+  // enumerate the vertices and edges, respectively
+  System & lagrange_sys = sys.get_equation_systems().add_system<System>("__hypre_ads_vertices");
+  lagrange_sys.hide_output() = true;
+  lagrange_sys.add_variable("__lagrange");
+  lagrange_sys.reinit_mesh();
+  System & nedelec_sys = sys.get_equation_systems().add_system<System>("__hypre_ads_edges");
+  nedelec_sys.hide_output() = true;
+  nedelec_sys.add_variable("__nedelec", FIRST, NEDELEC_ONE);
+  nedelec_sys.reinit_mesh();
+
+  // Global (i.e. total) and local (i.e. to this processor) number of faces,
+  // edges and vertices
+  const std::vector<dof_id_type> n_all_faces = sys.get_dof_map().n_dofs_per_processor(v);
+  const dof_id_type n_glb_faces = std::accumulate(n_all_faces.begin(), n_all_faces.end(), 0);
+  const dof_id_type n_loc_faces = n_all_faces[global_processor_id()];
+  const dof_id_type n_glb_edges = nedelec_sys.n_dofs();
+  const dof_id_type n_loc_edges = nedelec_sys.n_local_dofs();
+  const dof_id_type n_glb_verts = lagrange_sys.n_dofs();
+  const dof_id_type n_loc_verts = lagrange_sys.n_local_dofs();
+
+  // We require local indexing through the vertices and contiguous indexing
+  // through the edges and faces: since the vertices are enumerated on their own
+  // system, a local index can simply be obtained by subtracting those vertices
+  // in all preceding processors; since the edges are enumerated on their own
+  // system, we already have contiguous indexing; for the faces, if the system
+  // we are given by the user has multiple variables/splits, we effectively need
+  // to add local face numbers to those faces in all preceding processors
+
+  // The number of vertices and faces in all preceding processors
+  dof_id_signed_type vert_offset = -lagrange_sys.get_dof_map().first_dof();
+  dof_id_signed_type face_offset =
+    std::accumulate(n_all_faces.begin(), n_all_faces.begin() + global_processor_id(), 0);
+
+  // Whether dofs are in variable-major or node-major order
+  bool var_major = !libMesh::on_command_line("--node-major-dofs");
+
+  // If variable-major order, we need only subtract all the preceding dofs; but
+  // if node-major order, we need to enumerate the dofs on this processor
+  std::vector<dof_id_type> idx_faces;
+  if (var_major)
+  {
+    face_offset -= sys.get_dof_map().first_dof();
+    for (auto i : make_range(v))
+      face_offset -= sys.get_dof_map().n_local_dofs(i);
+  }
+  else
+    sys.get_dof_map().local_variable_indices(idx_faces, sys.get_mesh(), v);
+
+  // Create the discrete grandient matrix, representing the edges in terms of its vertices
+  // Preallocate 2 diagonal + 2 off-diagonal nonzeros as the vertices could fall on either
+  PetscMatrix<Real> G(Comm, n_glb_edges, n_glb_verts, n_loc_edges, n_loc_verts, 2, 2);
+
+  // Create the discrete curl matrix, representing the faces in terms of its edges
+  // Preallocate 4 diagonal + 4 off-diagonal nonzeros as the edges could fall on either
+  PetscMatrix<Real> C(Comm, n_glb_faces, n_glb_edges, n_loc_faces, n_loc_edges, 4, 4);
+
+  // Create array for the coordinates of the local vertices
+  PetscReal * coords;
+  LibmeshPetscCallA(comm, PetscMalloc1(dim * n_loc_verts, &coords));
+
+  // Populate the discrete gradient matrix and the coordinates array
+  for (const auto & elem : sys.get_mesh().active_local_element_ptr_range())
+    for (auto face : make_range(elem->n_faces()))
+    {
+      // The number of edges on this face
+      const unsigned n_face_edges = Elem::type_to_n_sides_map[elem->side_type(face)];
+
+      // The faces's three/four edges
+      std::vector<dof_id_type> edge_dofs(n_face_edges);
+      std::vector<bool> edge_orients(n_face_edges);
+      for (auto face_edge : make_range(n_face_edges))
+      {
+        // Convert from face-wise to element-wise edge id
+        const unsigned edge = elem->local_side_node(face, n_face_edges + face_edge)
+                            - elem->n_vertices();
+        libmesh_assert(elem->is_edge_on_side(edge, face));
+
+        // The edge's two vertices
+        dof_id_type vert_dofs[2];
+        for (auto vert : make_range(2))
+        {
+          const unsigned loc_vert_node_id = elem->local_edge_node(edge, vert);
+          libmesh_assert(elem->is_vertex(loc_vert_node_id));
+
+          const Node & vert_node = elem->node_ref(loc_vert_node_id);
+          vert_dofs[vert] = vert_node.dof_number(lagrange_sys.number(), 0, 0);
+
+          // If owned, populate coordinates array
+          if (vert_node.processor_id() == global_processor_id())
+          {
+            const dof_id_type loc_vert_dof = vert_offset + vert_dofs[vert];
+            libmesh_assert(loc_vert_dof <  n_loc_verts);
+
+            for (auto d : make_range(dim))
+              coords[dim * loc_vert_dof + d] = vert_node(d);
+          }
+        }
+
+        // The edge's (middle) node
+        const unsigned loc_edge_node_id = elem->local_edge_node(edge, 2);
+        libmesh_assert(elem->is_edge(loc_edge_node_id));
+
+        const Node & edge_node = elem->node_ref(loc_edge_node_id);
+        edge_dofs[face_edge] = edge_node.dof_number(nedelec_sys.number(), 0, 0);
+        edge_orients[face_edge] = elem->positive_edge_orientation(edge) ^
+                                  elem->relative_edge_face_order(edge, face);
+
+        // If owned, populate discrete gradient matrix
+        if (edge_node.processor_id() == global_processor_id())
+        {
+          const Real sign = elem->positive_edge_orientation(edge) ? 1 : -1;
+
+          libmesh_assert(edge_dofs[face_edge] >= G.row_start());
+          libmesh_assert(edge_dofs[face_edge] <  G.row_stop());
+          G.set(edge_dofs[face_edge], vert_dofs[0],  sign);
+          G.set(edge_dofs[face_edge], vert_dofs[1], -sign);
+        }
+      }
+
+      // The faces's (middle) node
+      const unsigned loc_face_node_id = elem->local_side_node(face, 2 * n_face_edges);
+      libmesh_assert(elem->is_face(loc_face_node_id));
+
+      const Node & face_node = elem->node_ref(loc_face_node_id);
+
+      // If owned, populate discrete curl matrix
+      if (face_node.processor_id() == global_processor_id())
+      {
+        const dof_id_type face_dof = face_node.dof_number(sys.number(), v, 0);
+
+        const dof_id_type cont_face_dof = face_offset +
+          (var_major ? face_dof
+                     : std::distance(idx_faces.begin(),
+                       std::find(idx_faces.begin(), idx_faces.end(), face_dof)));
+
+        const bool face_orient = elem->positive_face_orientation(face);
+
+        for (auto face_edge : make_range(n_face_edges))
+        {
+          const Real sign = face_orient ^ edge_orients[face_edge] ? 1 : -1;
+
+          libmesh_assert(cont_face_dof >= C.row_start());
+          libmesh_assert(cont_face_dof <  C.row_stop());
+          C.set(cont_face_dof, edge_dofs[face_edge], sign);
+        }
+      }
+    }
+
+  // Assemble the discrete gradient and discrete curl matrices
+  G.close();
+  C.close();
+
+#ifndef NDEBUG
+  // The product CG of the two matrices should be the zero matrix
+  PetscMatrix<Real> CG(Comm);
+  C.matrix_matrix_mult(G, CG);
+  libmesh_assert(CG.linfty_norm() == 0);
+#endif
+
+  // Hand over the matrices and coordinates array
+  LibmeshPetscCallA(comm, PCHYPRESetDiscreteGradient(pc, G.mat()));
+  LibmeshPetscCallA(comm, PCHYPRESetDiscreteCurl(pc, C.mat()));
+  LibmeshPetscCallA(comm, PCSetCoordinates(pc, dim, n_loc_verts, coords));
+
+  // Free allocated memory for the coordinates array
+  LibmeshPetscCallA(comm, PetscFree(coords));
+}
+#endif
+
+
+//------------------------------------------------------------------
+// Explicit instantiations
+template class LIBMESH_EXPORT PetscPreconditioner<Number>;
+
+} // namespace libMesh
+
+#endif // #ifdef LIBMESH_HAVE_PETSC

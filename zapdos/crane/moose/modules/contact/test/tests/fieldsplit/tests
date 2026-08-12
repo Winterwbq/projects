@@ -1,0 +1,30 @@
+[Tests]
+  issues = '#7485 #14791'
+  design = 'FieldSplitPreconditioner.md ComputeWeightedGapLMMechanicalContact.md '
+           'ComputeFrictionalForceLMMechanicalContact.md'
+  [2block-3D]
+    type = 'Exodiff'
+    input = '2blocks3d.i'
+    exodiff = '2blocks3d_out.e'
+    max_parallel = 4
+    requirement = 'The system shall allow for split preconditioning based on contact surfaces.'
+  []
+  [mortar-FS]
+    type = 'Exodiff'
+    input = 'frictionless_mortar_FS.i'
+    exodiff = 'frictionless_mortar_FS_out.e'
+    requirement = 'The system shall allow split preconditioning of frictionless mortar contact.'
+    capabilities = 'petsc>=3.16.6' # early versions of petsc can't handle change in sparsity pattern in field split
+    restep = false # Test is prescribed to abort on failed timestep
+    custom_cmp = frictionless_mortar_FS.cmp
+  []
+  [mortar-FS-frictional]
+    type = 'Exodiff'
+    input = 'frictional_mortar_FS.i'
+    exodiff = 'frictional_mortar_FS_out.e'
+    custom_cmp = frictional_mortar_FS.cmp
+    requirement = 'The system shall allow split preconditioning of frictional mortar contact.'
+    capabilities = 'petsc>=3.16.6' # early versions of petsc can't handle change in sparsity pattern in field split
+    restep = false # Test is prescribed to abort on failed timestep
+  []
+[]

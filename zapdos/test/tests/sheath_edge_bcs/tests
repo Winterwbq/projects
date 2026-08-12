@@ -1,0 +1,8 @@
+[Tests]
+  [sheath_edge_bcs_syntax]
+    type = RunApp
+    input = sheath_edge_bcs.i
+    check_input = true
+    requirement = "The sheath-edge wafer boundary conditions shall parse with ion, electron, and electron-energy variables."
+  []
+[]

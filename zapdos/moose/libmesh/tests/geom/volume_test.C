@@ -1,0 +1,1326 @@
+// libmesh includes
+#include <libmesh/cell_c0polyhedron.h>
+#include <libmesh/elem.h>
+#include <libmesh/enum_elem_type.h>
+#include <libmesh/face_c0polygon.h>
+#include <libmesh/mesh_generation.h>
+#include <libmesh/mesh_modification.h>
+#include <libmesh/mesh.h>
+#include <libmesh/reference_elem.h>
+#include <libmesh/replicated_mesh.h>
+#include <libmesh/node.h>
+#include <libmesh/enum_to_string.h>
+#include <libmesh/tensor_value.h>
+#include <libmesh/enum_elem_quality.h>
+
+// unit test includes
+#include "test_comm.h"
+#include "libmesh_cppunit.h"
+
+// C++ includes
+#include <iomanip>
+
+using namespace libMesh;
+
+class VolumeTest : public CppUnit::TestCase
+{
+
+public:
+  LIBMESH_CPPUNIT_TEST_SUITE( VolumeTest );
+  CPPUNIT_TEST( testTwistedVolume );
+  CPPUNIT_TEST( testEdge3Volume );
+  CPPUNIT_TEST( testEdge3Invertible );
+  CPPUNIT_TEST( testEdge4Invertible );
+  CPPUNIT_TEST( testQuad4Invertible );
+  CPPUNIT_TEST( testTri3TrueCentroid );
+  CPPUNIT_TEST( testQuad4TrueCentroid );
+  CPPUNIT_TEST( testPyramid5TrueCentroid );
+  CPPUNIT_TEST( testHex8TrueCentroid );
+  CPPUNIT_TEST( testPrism6TrueCentroid );
+  CPPUNIT_TEST( testHex20PLevelTrueCentroid );
+  CPPUNIT_TEST( testQuad4AspectRatio );
+  CPPUNIT_TEST( testQuad4Warpage );
+  CPPUNIT_TEST( testQuad4MinMaxAngle );
+  CPPUNIT_TEST( testQuad4Jacobian );
+  CPPUNIT_TEST( testTri3AspectRatio );
+  CPPUNIT_TEST( testTet4DihedralAngle );
+  CPPUNIT_TEST( testTet4Jacobian );
+  CPPUNIT_TEST( testC0PolygonSquare );
+  CPPUNIT_TEST( testC0PolygonQuad );
+  CPPUNIT_TEST( testC0PolygonPentagon );
+  CPPUNIT_TEST( testC0PolygonHexagon );
+  CPPUNIT_TEST( testC0PolyhedronCube );
+  CPPUNIT_TEST( testC0PolyhedronHexagonalPrism );
+  CPPUNIT_TEST_SUITE_END();
+
+public:
+  void setUp()
+  {
+  }
+
+  void tearDown()
+  {
+  }
+
+  void testTri3TrueCentroid()
+  {
+    LOG_UNIT_TEST;
+
+    // The true_centroid() == vertex_average() == (1/3, 1/3) for reference Tri3
+    {
+      const Elem & tri3 = ReferenceElem::get(TRI3);
+      Point true_centroid = tri3.true_centroid();
+      LIBMESH_ASSERT_FP_EQUAL(Real(1)/3, true_centroid(0), TOLERANCE*TOLERANCE);
+      LIBMESH_ASSERT_FP_EQUAL(Real(1)/3, true_centroid(1), TOLERANCE*TOLERANCE);
+    }
+  }
+
+  void testQuad4TrueCentroid()
+  {
+    LOG_UNIT_TEST;
+
+    // Test Quad4::true_centroid() override
+    {
+      const Elem & quad4 = ReferenceElem::get(QUAD4);
+      Point true_centroid = quad4.true_centroid();
+      LIBMESH_ASSERT_FP_EQUAL(0, true_centroid(0), TOLERANCE*TOLERANCE);
+      LIBMESH_ASSERT_FP_EQUAL(0, true_centroid(1), TOLERANCE*TOLERANCE);
+
+      // Compare to centroid computed via generic base class implementation
+      Point base_class_centroid = quad4.Elem::true_centroid();
+      CPPUNIT_ASSERT(true_centroid.absolute_fuzzy_equals(base_class_centroid, TOLERANCE*TOLERANCE));
+    }
+
+    // Check that "optimized" Quad4::true_centroid() gives same result
+    // as "generic" Elem::true_centroid() on a mesh of 10% distorted elements.
+    {
+      ReplicatedMesh mesh(*TestCommWorld);
+
+      MeshTools::Generation::build_square(mesh,
+                                          /*nx=*/3, /*ny=*/3,
+                                          /*xmin=*/0., /*xmax=*/1.,
+                                          /*ymin=*/0., /*ymax=*/1.,
+                                          QUAD4);
+
+      MeshTools::Modification::distort(mesh,
+                                       /*factor=*/0.1,
+                                       /*perturb_boundary=*/false);
+
+      for (const auto & elem : mesh.element_ptr_range())
+        {
+          Point derived_centroid = elem->true_centroid();
+          Point base_centroid = elem->Elem::true_centroid();
+
+          // Debugging: check results in detail
+          // auto flags = libMesh::out.flags();
+          // libMesh::out << std::scientific << std::setprecision(16);
+          // libMesh::out << "derived_centroid = " << derived_centroid << std::endl;
+          // libMesh::out << "base_centroid = " << base_centroid << std::endl;
+          // libMesh::out.flags(flags);
+
+          CPPUNIT_ASSERT(derived_centroid.absolute_fuzzy_equals(base_centroid, TOLERANCE*TOLERANCE));
+
+          Real derived_volume = elem->volume();
+          Real base_volume = elem->Elem::volume();
+          LIBMESH_ASSERT_FP_EQUAL(base_volume, derived_volume, TOLERANCE*TOLERANCE);
+        }
+    }
+  }
+
+  void testPyramid5TrueCentroid()
+  {
+    LOG_UNIT_TEST;
+
+    // Test Pyramid5::true_centroid() gives the correct result for a reference element
+    {
+      const Elem & pyr5 = ReferenceElem::get(PYRAMID5);
+      Point true_centroid = pyr5.true_centroid();
+      LIBMESH_ASSERT_FP_EQUAL(0, true_centroid(0), TOLERANCE*TOLERANCE);
+      LIBMESH_ASSERT_FP_EQUAL(0, true_centroid(1), TOLERANCE*TOLERANCE);
+      LIBMESH_ASSERT_FP_EQUAL(0.25, true_centroid(2), TOLERANCE*TOLERANCE);
+    }
+
+    // Currently there is not an optimized Pyramid5::true_centroid() to compare against
+    test_true_centroid_and_volume(PYRAMID5);
+  }
+
+  void testHex8TrueCentroid() { LOG_UNIT_TEST; test_true_centroid_and_volume(HEX8); }
+  void testPrism6TrueCentroid() { LOG_UNIT_TEST; test_true_centroid_and_volume(PRISM6); }
+
+  void testHex20PLevelTrueCentroid()
+  {
+    LOG_UNIT_TEST;
+
+    // Test that Elem base class true_centroid() implementation works
+    // for an elevated p_level HEX20
+    {
+#ifdef LIBMESH_ENABLE_AMR
+      ReplicatedMesh mesh(*TestCommWorld);
+      MeshTools::Generation::build_cube(mesh,
+                                        /*nelem=*/1, /*nelem=*/1, /*nelem=*/1,
+                                        /*xmin=*/-1, /*xmax=*/1,
+                                        /*ymin=*/-1, /*ymax=*/1,
+                                        /*zmin=*/-1, /*zmax=*/1,
+                                        HEX20);
+      Elem * hex20 = mesh.elem_ptr(0);
+      hex20->set_p_level(1);
+      Point true_centroid = hex20->true_centroid();
+      LIBMESH_ASSERT_FP_EQUAL(0, true_centroid(0), TOLERANCE*TOLERANCE);
+      LIBMESH_ASSERT_FP_EQUAL(0, true_centroid(1), TOLERANCE*TOLERANCE);
+      LIBMESH_ASSERT_FP_EQUAL(0, true_centroid(2), TOLERANCE*TOLERANCE);
+#endif // LIBMESH_ENABLE_AMR
+    }
+  }
+
+  void testTwistedVolume()
+  {
+    LOG_UNIT_TEST;
+
+    ReplicatedMesh mesh(*TestCommWorld);
+
+    // Build an element type that will fall back on our generic
+    // quadrature-based Elem::volume()
+    MeshTools::Generation::build_cube(mesh,
+                                      /*nelem=*/1, /*nelem=*/1, /*nelem=*/1,
+                                      /*xmin=*/-1, /*xmax=*/1,
+                                      /*ymin=*/-1, /*ymax=*/1,
+                                      /*zmin=*/-1, /*zmax=*/1,
+                                      PRISM21);
+
+    // Pick an element and twist it
+    Elem * prism6 = mesh.elem_ptr(0);
+    prism6->point(1) *= -1;
+    prism6->point(1) += 2*prism6->point(0);
+
+    // The real test here is that volume() doesn't throw
+    const Real vol = prism6->volume();
+    const Real gold_vol = 3+Real(5)/9;
+    CPPUNIT_ASSERT_LESS(TOLERANCE, std::abs(vol-gold_vol));
+  }
+
+  void testEdge3Volume()
+  {
+    LOG_UNIT_TEST;
+
+    Mesh mesh(*TestCommWorld);
+    MeshTools::Generation::build_line (mesh, /*nelem=*/1, 0., 1., EDGE3);
+    CPPUNIT_ASSERT_EQUAL(static_cast<dof_id_type>(3), mesh.n_nodes());
+
+    auto edge3 = mesh.query_elem_ptr(0);
+    if (!edge3) // We may be on a distributed mesh
+      return;
+
+    // Check unperturbed, straight edge case
+    LIBMESH_ASSERT_FP_EQUAL(1.0, edge3->volume(), TOLERANCE*TOLERANCE);
+
+    // Get references to the individual Edge3 nodes
+    auto & middle_node = edge3->node_ref(2);
+    auto & right_node = edge3->node_ref(1);
+
+    // Check middle node perturbed in +x direction case. This should
+    // not change the volume because it's still a straight line
+    // element.
+    middle_node = Point(0.5 + 1.e-3, 0., 0.);
+    LIBMESH_ASSERT_FP_EQUAL(1.0, edge3->volume(), TOLERANCE*TOLERANCE);
+
+    // Check middle node perturbed in -x direction case. This should
+    // not change the volume because it's still a straight line
+    // element.
+    middle_node = Point(0.5 - 1.e-3, 0., 0.);
+    LIBMESH_ASSERT_FP_EQUAL(1.0, edge3->volume(), TOLERANCE*TOLERANCE);
+
+    // Check volume of actual curved element against pre-computed value.
+    middle_node = Point(0.5, 0.25, 0.);
+    right_node = Point(1., 1., 0.);
+    LIBMESH_ASSERT_FP_EQUAL(1.4789428575446, edge3->volume(), TOLERANCE);
+
+    // Compare with volume computed by base class Elem::volume() call
+    // which uses quadrature.  We don't expect this to have full
+    // floating point accuracy.
+    middle_node = Point(0.5, 0.1, 0.);
+    right_node = Point(1., 0., 0.);
+    LIBMESH_ASSERT_FP_EQUAL(edge3->Elem::volume(), edge3->volume(), 1e-4);
+  }
+
+  void testEdge3Invertible()
+  {
+    LOG_UNIT_TEST;
+
+    // 1.) This is the original test which started the investigation
+    // of determining invertibility.  In this test, the actual
+    // midpoint of nodes 0 and 1 is 0.5*(1.100328e2 + 1.176528e2) =
+    // 113.8428, so we can see that the middle node is closer to the
+    // left endpoint. In this case, it is too close and the element is
+    // not invertible.
+    bool invertible = test_elem_invertible({
+      Point(-3.566160e1, -6.690970e-1, 1.100328e2),
+      Point(-3.566160e1, -6.690970e-1, 1.176528e2),
+      Point(-3.566160e1, -6.690970e-1, 1.115568e2)}, EDGE3);
+    CPPUNIT_ASSERT(!invertible);
+
+    // 2.) Just like case 1, but now node 2 is at the midpoint, so
+    // this case is invertible.
+    invertible = test_elem_invertible({
+      Point(-3.566160e1, -6.690970e-1, 1.100328e2),
+      Point(-3.566160e1, -6.690970e-1, 1.176528e2),
+      Point(-3.566160e1, -6.690970e-1, 113.8428)}, EDGE3);
+    CPPUNIT_ASSERT(invertible);
+
+    // 3.) Non-collinear case where the mid-edge node is "above" and "way
+    // past" the right endpoint. This case is not invertible
+    invertible = test_elem_invertible({Point(0, 0, 0), Point(1, 0, 0), Point(3.5, 1.5, 0)}, EDGE3);
+    CPPUNIT_ASSERT(!invertible);
+  }
+
+  void testEdge4Invertible()
+  {
+    LOG_UNIT_TEST;
+
+    // Reference Elem should be invertible
+    {
+      const Elem & edge4 = ReferenceElem::get(EDGE4);
+      CPPUNIT_ASSERT(edge4.has_invertible_map());
+    }
+
+    // If node 2 goes to the left past -5/9 = -.555, the element becomes non-invertible
+    {
+      // x2 > -5/9, the map is still invertible
+      bool invertible =
+        test_elem_invertible({Point(-1, 0, 0), Point(1, 0, 0), Point(-0.5, 0, 0), Point(Real(1)/3, 0, 0)},
+                  EDGE4);
+      CPPUNIT_ASSERT(invertible);
+
+      // x2 < -5/9, it is too close to x0 now
+      invertible =
+        test_elem_invertible({Point(-1, 0, 0), Point(1, 0, 0), Point(-0.57, 0, 0), Point(Real(1)/3, 0, 0)},
+                  EDGE4);
+      CPPUNIT_ASSERT(!invertible);
+    }
+
+    // If node 2 goes to the right past 5/21 ~ 0.2381, the element becomes non-invertible
+    {
+      // x2 < 5/21, the map should still be invertible
+      bool invertible =
+        test_elem_invertible({Point(-1, 0, 0), Point(1, 0, 0), Point(Real(3)/21, 0, 0), Point(Real(1)/3, 0, 0)},
+                  EDGE4);
+      CPPUNIT_ASSERT(invertible);
+
+      // x2 > 5/21, x2 is too close to x3 now
+      invertible =
+        test_elem_invertible({Point(-1, 0, 0), Point(1, 0, 0), Point(Real(6)/21, 0, 0), Point(Real(1)/3, 0, 0)},
+                  EDGE4);
+      CPPUNIT_ASSERT(!invertible);
+    }
+  }
+
+  void testQuad4Invertible()
+  {
+    LOG_UNIT_TEST;
+
+    // Case 1: Test that rigid body rotations have no effect on the
+    // invertibility of the reference element
+    {
+      // 1a) The reference element rotated into various different different planes.
+      std::vector<Point> pts = {Point(0, 0, 0), Point(1, 0, 0), Point(1, 1, 0), Point(0, 1, 0)};
+      bool invertible = test_elem_invertible(pts, QUAD4);
+      CPPUNIT_ASSERT(invertible);
+
+      // 1b) Rotate all points about x-axis by 90 degrees
+      Real cost = std::cos(.5*libMesh::pi);
+      Real sint = std::sin(.5*libMesh::pi);
+      RealTensorValue Rx(1, 0, 0,
+                         0, cost, sint,
+                         0, sint, cost);
+
+      for (auto & pt : pts)
+        pt = Rx * pt;
+
+      invertible = test_elem_invertible(pts, QUAD4);
+      CPPUNIT_ASSERT(invertible);
+
+      // 1c) Rotate all points about z-axis by 90 degrees
+      RealTensorValue Rz(cost, -sint, 0,
+                         sint,  cost, 0,
+                         0,        0, 1);
+
+      for (auto & pt : pts)
+        pt = Rz * pt;
+
+      invertible = test_elem_invertible(pts, QUAD4);
+      CPPUNIT_ASSERT(invertible);
+
+      // 1d) Rotate all points about y-axis by 270 degrees
+      RealTensorValue Ry(cost,  0, sint,
+                         0,     1, 0,
+                         -sint, 0, cost);
+
+      for (int cnt=0; cnt<3; ++cnt)
+        for (auto & pt : pts)
+          pt = Ry * pt;
+
+      invertible = test_elem_invertible(pts, QUAD4);
+      CPPUNIT_ASSERT(invertible);
+    }
+
+    // Case 2: Planar quad with top right vertex displaced to the position
+    // (alpha, alpha). Some different cases are described below.
+    // .) alpha==1: affine case, always invertible
+    // .) 1/2 < alpha < 1: planar case, invertible
+    // .) alpha<=1/2: planar case but node is now at center of the
+    //    element, should give a zero/negative Jacobian on the displaced
+    //    Node -> not invertible.
+    {
+      const Real alpha = .5;
+
+      bool invertible =
+        test_elem_invertible({Point(0, 0, 0), Point(1, 0, 0), Point(alpha, alpha, 0), Point(0, 1, 0)}, QUAD4);
+
+      CPPUNIT_ASSERT(!invertible);
+    }
+
+    // Case 3) Top right corner is moved to (alpha, 1, 0). Element
+    // becomes non-invertible when alpha < 0.
+    {
+      const Real alpha = -0.25;
+
+      bool invertible =
+        test_elem_invertible({Point(0, 0, 0), Point(1, 0, 0), Point(alpha, 1, 0), Point(0, 1, 0)}, QUAD4);
+
+      CPPUNIT_ASSERT(!invertible);
+    }
+
+    // Case 4) Degenerate case - all 4 points at same location. This
+    // zero-volume element does not have an invertible map.
+    {
+      const Real alpha = std::log(2);
+
+      bool invertible =
+        test_elem_invertible({Point(alpha, alpha, alpha),
+                   Point(alpha, alpha, alpha),
+                   Point(alpha, alpha, alpha),
+                   Point(alpha, alpha, alpha)}, QUAD4);
+
+      CPPUNIT_ASSERT(!invertible);
+    }
+  }
+
+  void testQuad4AspectRatio()
+  {
+    LOG_UNIT_TEST;
+
+    // Case 1: Test that rigid body rotations of a unit square
+    // quadrilateral that have no effect on the quality of the
+    // element.
+    {
+      // Construct unit square QUAD4
+      std::vector<Point> pts = {Point(0, 0, 0), Point(1, 0, 0), Point(1, 1, 0), Point(0, 1, 0)};
+      auto [elem, nodes] = this->construct_elem(pts, QUAD4);
+      libmesh_ignore(nodes);
+
+      // 1a) Unit square aspect ratio should be == 1
+      Real aspect_ratio = elem->quality(ASPECT_RATIO);
+      LIBMESH_ASSERT_FP_EQUAL(/*expected=*/1.0, /*actual=*/aspect_ratio, TOLERANCE);
+
+      // 1b) Rotate all points about x-axis by 90 degrees
+      Real cost = std::cos(.5*libMesh::pi);
+      Real sint = std::sin(.5*libMesh::pi);
+      RealTensorValue Rx(1, 0, 0,
+                         0, cost, sint,
+                         0, sint, cost);
+
+      for (auto & pt : pts)
+        pt = Rx * pt;
+
+      aspect_ratio = elem->quality(ASPECT_RATIO);
+      LIBMESH_ASSERT_FP_EQUAL(/*expected=*/1.0, /*actual=*/aspect_ratio, TOLERANCE);
+
+      // 1c) Rotate all points about z-axis by 90 degrees
+      RealTensorValue Rz(cost, -sint, 0,
+                         sint,  cost, 0,
+                         0,        0, 1);
+
+      for (auto & pt : pts)
+        pt = Rz * pt;
+
+      aspect_ratio = elem->quality(ASPECT_RATIO);
+      LIBMESH_ASSERT_FP_EQUAL(/*expected=*/1.0, /*actual=*/aspect_ratio, TOLERANCE);
+
+      // 1d) Rotate all points about y-axis by 270 degrees
+      RealTensorValue Ry(cost,  0, sint,
+                         0,     1, 0,
+                         -sint, 0, cost);
+
+      for (int cnt=0; cnt<3; ++cnt)
+        for (auto & pt : pts)
+          pt = Ry * pt;
+
+      aspect_ratio = elem->quality(ASPECT_RATIO);
+      LIBMESH_ASSERT_FP_EQUAL(/*expected=*/1.0, /*actual=*/aspect_ratio, TOLERANCE);
+    }
+
+    // Case 2: Rhombus QUAD4. This case should have an aspect ratio of
+    // 1/sin(theta), where theta is the acute interior angle of the
+    // rhombus.
+    {
+      // Helper lambda function that constructs a rhombus quad with
+      // interior acute angle theta.
+      auto test_rhombus_quad = [this](Real theta)
+      {
+        Real ct = std::cos(theta);
+        Real st = std::sin(theta);
+        std::vector<Point> pts = {
+          Point(0, 0, 0),
+          Point(1, 0, 0),
+          Point(1. + ct, st, 0),
+          Point(     ct, st, 0)};
+        auto [elem, nodes] = this->construct_elem(pts, QUAD4);
+        libmesh_ignore(nodes);
+
+        // The expected aspect ratio for the rhombus is 1/sin(theta)
+        Real aspect_ratio = elem->quality(ASPECT_RATIO);
+        LIBMESH_ASSERT_FP_EQUAL(/*expected=*/1.0/st, /*actual=*/aspect_ratio, TOLERANCE);
+      };
+
+      // 2a) Rhombus with interior angle theta=pi/6. The expected
+      // aspect ratio in this case is 1/std::sin(pi/6) = 2
+      test_rhombus_quad(libMesh::pi / 6);
+
+      // 2b) Rhombus with interior angle theta=pi/3. The expected
+      // aspect ratio in this case is 1/std::sin(pi/3) = 2/sqrt(3) = 1.155
+      test_rhombus_quad(libMesh::pi / 3);
+    }
+
+    // Case 3) Rectangle QUAD4. The "old" and "new" aspect ratio metrics
+    // return the same result for this case, whih is simply the ratio of
+    // the longest to shortest side.
+    {
+      auto test_rectangle_quad = [this](Real a)
+      {
+        std::vector<Point> pts = {Point(0, 0, 0), Point(a, 0, 0), Point(a, 1, 0), Point(0, 1, 0)};
+        auto [elem, nodes] = this->construct_elem(pts, QUAD4);
+        libmesh_ignore(nodes);
+
+        // The expected aspect ratio for the rectangle is "a"
+        Real aspect_ratio = elem->quality(ASPECT_RATIO);
+        LIBMESH_ASSERT_FP_EQUAL(/*expected=*/a, /*actual=*/aspect_ratio, TOLERANCE);
+      };
+
+      // 3a) Test case twice as long as it is tall
+      test_rectangle_quad(2.0);
+
+      // 3b) Test no funny numerical stuff with extremely stretched case
+      test_rectangle_quad(1e6);
+    }
+
+    // Case 4) Degenerate QUAD with zero length side. In the "old"
+    // aspect ratio metric we'd just get zero (as a stand-in for
+    // infinity) for this case since the minimum side length is zero,
+    // but using the new metric we get a non-zero value of 2.5. Thus,
+    // in the new metric it is possible to compare the aspect ratios
+    // of different degenerate QUAD elements rather than simply
+    // assigning all such elements a quality value of 0. Degenerate
+    // quadrilaterals are sometimes used as a "hack" to avoid having a
+    // separate subdomain of TRIs, and (surprisingly) many finite
+    // element operations just "work" on such elements.
+    {
+      std::vector<Point> pts = {Point(0, 0, 0), Point(1, 0, 0), Point(1, 0, 0), Point(0, 1, 0)};
+      auto [elem, nodes] = this->construct_elem(pts, QUAD4);
+      libmesh_ignore(nodes);
+
+      Real aspect_ratio = elem->quality(ASPECT_RATIO);
+      LIBMESH_ASSERT_FP_EQUAL(/*expected=*/2.5, /*actual=*/aspect_ratio, TOLERANCE);
+    }
+
+    // Case 5) Trapezoid QUAD
+    {
+      auto test_trapezoid_quad = [this](Real a)
+      {
+        // 0 <= a <= 1/2
+        std::vector<Point> pts = {Point(0, 0, 0), Point(1, 0, 0), Point(1-a, 1, 0), Point(a, 1, 0)};
+        auto [elem, nodes] = this->construct_elem(pts, QUAD4);
+        libmesh_ignore(nodes);
+
+        Real aspect_ratio = elem->quality(ASPECT_RATIO);
+        LIBMESH_ASSERT_FP_EQUAL(/*expected=*/1./(1. - a), /*actual=*/aspect_ratio, TOLERANCE);
+      };
+
+      // 3a) Test "simple" trapezoid with expected aspect ratio 1.5
+      test_trapezoid_quad(1./3);
+
+      // 3b) Test "degenerate" trapezoid with one zero length base
+      test_trapezoid_quad(0.5);
+    }
+  }
+
+  void testTri3AspectRatio()
+  {
+    LOG_UNIT_TEST;
+
+    // Case 1) Reference TRI3
+    {
+      std::vector<Point> pts = {Point(0, 0, 0), Point(1, 0, 0), Point(0, 1, 0)};
+      auto [elem, nodes] = this->construct_elem(pts, TRI3);
+      libmesh_ignore(nodes);
+
+      // Compute the aspect ratio for the reference Tri
+      // The expected value is ~ 1.44338
+      Real aspect_ratio = elem->quality(ASPECT_RATIO);
+      // libMesh::out << "Unit TRI3 aspect ratio = " << aspect_ratio << std::endl;
+      LIBMESH_ASSERT_FP_EQUAL(/*expected=*/Real(5)/2/std::sqrt(Real(3)), /*actual=*/aspect_ratio, TOLERANCE);
+    }
+
+    // Case 2) Equilateral TRI3
+    {
+      std::vector<Point> pts = {Point(0, 0, 0), Point(1, 0, 0), Point(0.5, 0.5*std::sqrt(3), 0)};
+      auto [elem, nodes] = this->construct_elem(pts, TRI3);
+      libmesh_ignore(nodes);
+
+      // Compute the aspect ratio for the reference Tri
+      // The expected value is 1.0
+      Real aspect_ratio = elem->quality(ASPECT_RATIO);
+      // libMesh::out << "Equilateral TRI3 aspect ratio = " << aspect_ratio << std::endl;
+      LIBMESH_ASSERT_FP_EQUAL(/*expected=*/Real(1), /*actual=*/aspect_ratio, TOLERANCE);
+    }
+
+    // Case 3) Reference TRI3 with one leg length = L >> 1
+    {
+      Real L = 10.;
+      std::vector<Point> pts = {Point(0, 0, 0), Point(L, 0, 0), Point(0, 1, 0)};
+      auto [elem, nodes] = this->construct_elem(pts, TRI3);
+      libmesh_ignore(nodes);
+
+      // Compute the aspect ratio for the reference Tri
+      // The expected value is ~ 11.5759
+      Real aspect_ratio = elem->quality(ASPECT_RATIO);
+      // libMesh::out << "TRI3 with leg length L = " << L << ", aspect ratio = " << aspect_ratio << std::endl;
+      LIBMESH_ASSERT_FP_EQUAL(/*expected=*/Real(1)/std::sqrt(Real(3)) * (Real(2)*L + Real(1)/(2*L)), /*actual=*/aspect_ratio, TOLERANCE);
+    }
+  }
+
+  void testQuad4Warpage()
+  {
+    LOG_UNIT_TEST;
+
+    // Case 1: Test that rigid body rotations of a unit square
+    // quadrilateral that have no effect on the quality of the
+    // element.
+    {
+      // Construct unit square QUAD4
+      std::vector<Point> pts = {Point(0, 0, 0), Point(1, 0, 0), Point(1, 1, 0), Point(0, 1, 0)};
+      auto [elem, nodes] = this->construct_elem(pts, QUAD4);
+      libmesh_ignore(nodes);
+
+      // 1a) Any flat element should have warp == 1
+      Real warpage = elem->quality(WARP);
+      LIBMESH_ASSERT_FP_EQUAL(/*expected=*/1.0, /*actual=*/warpage, TOLERANCE);
+
+      // 1b) Rotate all points about x-axis by 90 degrees
+      Real cost = std::cos(.5*libMesh::pi);
+      Real sint = std::sin(.5*libMesh::pi);
+      RealTensorValue Rx(1, 0, 0,
+                         0, cost, sint,
+                         0, sint, cost);
+
+      for (auto & pt : pts)
+        pt = Rx * pt;
+
+      warpage = elem->quality(WARP);
+      LIBMESH_ASSERT_FP_EQUAL(/*expected=*/1.0, /*actual=*/warpage, TOLERANCE);
+
+      // 1c) Rotate all points about z-axis by 90 degrees
+      RealTensorValue Rz(cost, -sint, 0,
+                         sint,  cost, 0,
+                         0,        0, 1);
+
+      for (auto & pt : pts)
+        pt = Rz * pt;
+
+      warpage = elem->quality(WARP);
+      LIBMESH_ASSERT_FP_EQUAL(/*expected=*/1.0, /*actual=*/warpage, TOLERANCE);
+
+      // 1d) Rotate all points about y-axis by 270 degrees
+      RealTensorValue Ry(cost,  0, sint,
+                         0,     1, 0,
+                         -sint, 0, cost);
+
+      for (int cnt=0; cnt<3; ++cnt)
+        for (auto & pt : pts)
+          pt = Ry * pt;
+
+      warpage = elem->quality(WARP);
+      LIBMESH_ASSERT_FP_EQUAL(/*expected=*/1.0, /*actual=*/warpage, TOLERANCE);
+    }
+
+    // Case 2: Unit square quadrilateral with Node 2 displaced by a distance h in the z-direction.
+    {
+      auto test_warped_quad = [this](Real h)
+      {
+        std::vector<Point> pts = {Point(0, 0, 0), Point(1, 0, 0), Point(1, 1, h), Point(0, 1, 0)};
+        auto [elem, nodes] = this->construct_elem(pts, QUAD4);
+        libmesh_ignore(nodes);
+
+        Real warpage = elem->quality(WARP);
+        // libMesh::out << "QUAD with node 3 displaced by h = "
+        //              << h << " in the z-direction , warpage = " << warpage
+        //              << std::endl;
+        LIBMESH_ASSERT_FP_EQUAL(/*expected=*/Real(1) / (h*h + 1), /*actual=*/warpage, TOLERANCE);
+      };
+
+      // For h = 0.1, the expected warpage value is ~ 0.991, so not
+      // much different than the value of 1.0 for a flat element.
+      test_warped_quad(0.1);
+
+      // For h = 0.3, the expected warpage value is ~ 0.917431, which
+      // is pretty close to the lower bound (0.9) of "acceptable"
+      // warpage, as suggested in the Cubit manual.
+      test_warped_quad(0.3);
+    }
+  }
+
+  void testQuad4MinMaxAngle()
+  {
+    LOG_UNIT_TEST;
+
+    // Case 1: Test that rigid body rotations of a unit square
+    // quadrilateral that have no effect on the quality of the
+    // element.
+    {
+      // Construct unit square QUAD4
+      std::vector<Point> pts = {Point(0, 0, 0), Point(1, 0, 0), Point(1, 1, 0), Point(0, 1, 0)};
+      auto [elem, nodes] = this->construct_elem(pts, QUAD4);
+      libmesh_ignore(nodes);
+
+      // 1a) Reference Elem should have min angle == max angle == pi/2
+      {
+        Real min_angle = elem->quality(MIN_ANGLE);
+        Real max_angle = elem->quality(MAX_ANGLE);
+        LIBMESH_ASSERT_FP_EQUAL(/*expected=*/90, /*actual=*/min_angle, TOLERANCE);
+        LIBMESH_ASSERT_FP_EQUAL(/*expected=*/90, /*actual=*/max_angle, TOLERANCE);
+      }
+
+      // 1b) Rotate all points about x-axis by 90 degrees
+      Real cost = std::cos(.5*libMesh::pi);
+      Real sint = std::sin(.5*libMesh::pi);
+      RealTensorValue Rx(1, 0, 0,
+                         0, cost, sint,
+                         0, sint, cost);
+
+      for (auto & pt : pts)
+        pt = Rx * pt;
+
+      {
+        Real min_angle = elem->quality(MIN_ANGLE);
+        Real max_angle = elem->quality(MAX_ANGLE);
+        LIBMESH_ASSERT_FP_EQUAL(/*expected=*/90, /*actual=*/min_angle, TOLERANCE);
+        LIBMESH_ASSERT_FP_EQUAL(/*expected=*/90, /*actual=*/max_angle, TOLERANCE);
+      }
+
+      // 1c) Rotate all points about z-axis by 90 degrees
+      RealTensorValue Rz(cost, -sint, 0,
+                         sint,  cost, 0,
+                         0,        0, 1);
+
+      for (auto & pt : pts)
+        pt = Rz * pt;
+
+      {
+        Real min_angle = elem->quality(MIN_ANGLE);
+        Real max_angle = elem->quality(MAX_ANGLE);
+        LIBMESH_ASSERT_FP_EQUAL(/*expected=*/90, /*actual=*/min_angle, TOLERANCE);
+        LIBMESH_ASSERT_FP_EQUAL(/*expected=*/90, /*actual=*/max_angle, TOLERANCE);
+      }
+
+      // 1d) Rotate all points about y-axis by 270 degrees
+      RealTensorValue Ry(cost,  0, sint,
+                         0,     1, 0,
+                         -sint, 0, cost);
+
+      for (int cnt=0; cnt<3; ++cnt)
+        for (auto & pt : pts)
+          pt = Ry * pt;
+
+      {
+        Real min_angle = elem->quality(MIN_ANGLE);
+        Real max_angle = elem->quality(MAX_ANGLE);
+        LIBMESH_ASSERT_FP_EQUAL(/*expected=*/90, /*actual=*/min_angle, TOLERANCE);
+        LIBMESH_ASSERT_FP_EQUAL(/*expected=*/90, /*actual=*/max_angle, TOLERANCE);
+      }
+    }
+
+    // Case 2: Rhombus QUAD4. This case should have an interior min
+    // angle of theta and an interior max angle of pi-theta, where
+    // "theta" is the specified amount that we "sheared" the element
+    // by on creation
+    {
+      // Helper lambda function that constructs a rhombus quad with
+      // interior acute angle theta.
+      auto test_rhombus_quad = [this](Real theta)
+      {
+        Real ct = std::cos(theta);
+        Real st = std::sin(theta);
+        std::vector<Point> pts = {
+          Point(0, 0, 0),
+          Point(1, 0, 0),
+          Point(1. + ct, st, 0),
+          Point(     ct, st, 0)};
+        auto [elem, nodes] = this->construct_elem(pts, QUAD4);
+        libmesh_ignore(nodes);
+
+        Real min_angle = elem->quality(MIN_ANGLE);
+        Real max_angle = elem->quality(MAX_ANGLE);
+        LIBMESH_ASSERT_FP_EQUAL(/*expected=*/Real(180) / libMesh::pi * theta,                 /*actual=*/min_angle, TOLERANCE);
+        LIBMESH_ASSERT_FP_EQUAL(/*expected=*/Real(180) / libMesh::pi * (libMesh::pi - theta), /*actual=*/max_angle, TOLERANCE);
+      };
+
+      // 2a) Rhombus with interior angle theta=pi/6.
+      test_rhombus_quad(libMesh::pi / 6);
+
+      // 2b) Rhombus with interior angle theta=pi/3.
+      test_rhombus_quad(libMesh::pi / 3);
+    }
+  }
+
+  void testQuad4Jacobian()
+  {
+    LOG_UNIT_TEST;
+
+    // Rhombus QUAD4. This case should have a JACOBIAN and
+    // SCALED_JACOBIAN value of sin(theta), where "theta" is the
+    // specified amount that we "sheared" the element by on creation.
+    // The JACOBIAN and SCALED_JACOBIAN are the same for this element
+    // because the edge lengths are all = 1.
+    {
+      // Helper lambda function that constructs a rhombus quad with
+      // interior acute angle theta.
+      auto test_rhombus_quad = [this](Real theta)
+      {
+        Real ct = std::cos(theta);
+        Real st = std::sin(theta);
+        std::vector<Point> pts = {
+          Point(0, 0, 0),
+          Point(1, 0, 0),
+          Point(1. + ct, st, 0),
+          Point(     ct, st, 0)};
+        auto [elem, nodes] = this->construct_elem(pts, QUAD4);
+        libmesh_ignore(nodes);
+
+        Real jac = elem->quality(JACOBIAN);
+        Real scaled_jac = elem->quality(SCALED_JACOBIAN);
+
+        // Debugging
+        // libMesh::out << "jac = " << jac << std::endl;
+        // libMesh::out << "scaled_jac = " << scaled_jac << std::endl;
+
+        LIBMESH_ASSERT_FP_EQUAL(/*expected=*/std::abs(std::sin(theta)), /*actual=*/jac, TOLERANCE);
+        LIBMESH_ASSERT_FP_EQUAL(/*expected=*/std::abs(std::sin(theta)), /*actual=*/scaled_jac, TOLERANCE);
+      };
+
+      // 2a) Rhombus with interior angle theta=pi/6.
+      test_rhombus_quad(libMesh::pi / 6);
+
+      // 2b) Rhombus with interior angle theta=pi/3.
+      test_rhombus_quad(libMesh::pi / 3);
+    }
+  }
+
+  void testTet4DihedralAngle()
+  {
+    LOG_UNIT_TEST;
+
+    // Construct a tetrahedron whose projection into the x-y plane looks like the unit square,
+    // and where the apex node is just slightly out of the x-y plane. This element should have
+    // reasonable MIN,MAX_ANGLE values but MIN,MAX_DIHEDRAL angles of nearly 0. This is an
+    // example that demonstrates one should not solely use edge angles to determine Elem quality
+    // in 3D.
+    std::vector<Point> pts = {Point(0, 0, 0), Point(1, 0, 0), Point(0, 1, 0), Point(1, 1, 0.01)};
+    auto [elem, nodes] = this->construct_elem(pts, TET4);
+    libmesh_ignore(nodes);
+
+    Real min_angle = elem->quality(MIN_ANGLE);
+    Real max_angle = elem->quality(MAX_ANGLE);
+    Real min_dihedral_angle = elem->quality(MIN_DIHEDRAL_ANGLE);
+    Real max_dihedral_angle = elem->quality(MAX_DIHEDRAL_ANGLE);
+
+    // Debugging
+    // libMesh::out << "Squashed Tet4 min_angle = " << min_angle << " degrees" << std::endl;
+    // libMesh::out << "Squashed Tet4 max_angle = " << max_angle << " degrees"  << std::endl;
+    // libMesh::out << "Squashed Tet4 min_dihedral_angle = " << min_dihedral_angle << " degrees" << std::endl;
+    // libMesh::out << "Squashed Tet4 max_dihedral_angle = " << max_dihedral_angle << " degrees" << std::endl;
+
+    LIBMESH_ASSERT_FP_EQUAL(/*expected=*/44.9985676771277, /*actual=*/min_angle, TOLERANCE);
+    LIBMESH_ASSERT_FP_EQUAL(/*expected=*/90, /*actual=*/max_angle, TOLERANCE);
+
+    // Assert that both min and max dihedral angles are less than 1 degree (a very low quality element)
+    CPPUNIT_ASSERT_LESS(Real(1), min_dihedral_angle);
+    CPPUNIT_ASSERT_LESS(Real(1), max_dihedral_angle);
+  }
+
+  void testTet4Jacobian()
+  {
+    LOG_UNIT_TEST;
+
+    {
+      // Same element as in testTet4DihedralAngle(). Here we verify that
+      // the element is low quality since the SCALED_JACOBIAN is < O(h)
+      // as h -> 0, and h can be arbitrarily small in the squashed element.
+      Real h = Real(1)/100;
+      std::vector<Point> pts = {Point(0, 0, 0), Point(1, 0, 0), Point(0, 1, 0), Point(1, 1, h)};
+      auto [elem, nodes] = this->construct_elem(pts, TET4);
+      libmesh_ignore(nodes);
+
+      Real jac = elem->quality(JACOBIAN);
+      Real scaled_jac = elem->quality(SCALED_JACOBIAN);
+
+      // Debugging
+      // libMesh::out << "Squashed Tet4 jac = " << jac << std::endl;
+      // libMesh::out << "Squashed Tet4 scaled_jac = " << scaled_jac << std::endl;
+
+      LIBMESH_ASSERT_FP_EQUAL(/*expected=*/h, /*actual=*/jac, TOLERANCE);
+      LIBMESH_ASSERT_FP_EQUAL(/*expected=*/h/(h*h+1)/std::sqrt(h*h+2),
+                              /*actual=*/scaled_jac, TOLERANCE * TOLERANCE);
+    }
+
+    {
+      // A representative Tet generated by calling build_cube(). This
+      // element has minimum interior edge angle of approximately
+      // 35.26 degrees, so it it is not a simple refinement of the
+      // reference element. It is not located at the origin, but still
+      // has a simple to compute value for the JACOBIAN and
+      // SCALED_JACOBIAN quality metrics.
+      std::vector<Point> pts = {
+        Point(2.5, 2.5, 4.5),
+        Point(3.5, 1.5, 5.5),
+        Point(1.5, 1.5, 5.5),
+        Point(2.5, 2.5, 5.5)
+      };
+      auto [elem, nodes] = this->construct_elem(pts, TET4);
+      libmesh_ignore(nodes);
+
+      Real jac = elem->quality(JACOBIAN);
+      Real scaled_jac = elem->quality(SCALED_JACOBIAN);
+
+      // Debugging
+      // libMesh::out << "build_cube() Tet4 jac = " << jac << std::endl;
+      // libMesh::out << "build_cube() Tet4 scaled_jac = " << scaled_jac << std::endl;
+
+      LIBMESH_ASSERT_FP_EQUAL(/*expected=*/2,                          /*actual=*/jac, TOLERANCE);
+      LIBMESH_ASSERT_FP_EQUAL(/*expected=*/Real(1)/std::sqrt(Real(6)), /*actual=*/scaled_jac, TOLERANCE);
+    }
+  }
+
+
+
+  void testC0Polygon(const std::vector<Point> & points,
+                     Real expected_volume)
+  {
+    Mesh mesh(*TestCommWorld);
+
+    const auto np = points.size();
+    std::unique_ptr<Elem> polygon = std::make_unique<C0Polygon>(np);
+
+    for (auto p : make_range(np))
+      polygon->set_node(p, mesh.add_point(points[p], p));
+
+    polygon->set_id() = 0;
+    Elem * elem = mesh.add_elem(std::move(polygon));
+
+    const Real derived_volume = elem->volume();
+    const Real base_volume = elem->Elem::volume();
+    LIBMESH_ASSERT_FP_EQUAL(base_volume, derived_volume, TOLERANCE*TOLERANCE);
+    LIBMESH_ASSERT_FP_EQUAL(derived_volume, expected_volume, TOLERANCE*TOLERANCE);
+
+    this->testC0PolygonMethods(mesh, np);
+  }
+
+
+
+  void testC0PolygonSquare()
+  {
+    LOG_UNIT_TEST;
+    testC0Polygon({{0,0}, {1,0}, {1,1}, {0,1}}, 1);
+  }
+
+  void testC0PolygonQuad()
+  {
+    LOG_UNIT_TEST;
+    testC0Polygon({{0,0}, {1,0}, {1,2}, {-1,1}}, 2.5);
+  }
+
+  void testC0PolygonPentagon()
+  {
+    LOG_UNIT_TEST;
+    testC0Polygon({{0,0}, {1,0}, {1.5,0.5}, {1,1}, {0,1}}, 1.25);
+  }
+
+  void testC0PolygonHexagon()
+  {
+    LOG_UNIT_TEST;
+    testC0Polygon({{0,0}, {1,0}, {1.5,0.5}, {1,1}, {0,1}, {-0.5, 0.5}}, 1.5);
+  }
+
+protected:
+
+  // Helper function that is called by test_elem_invertible() to build an Elem
+  // of the requested elem_type from the provided Points. Note: the
+  // Nodes which are constructed in order to construct the Elem are
+  // also returned since
+  std::pair<std::unique_ptr<Elem>, std::vector<std::unique_ptr<Node>>>
+  construct_elem(const std::vector<Point> & pts,
+                 ElemType elem_type)
+  {
+    const unsigned int n_points = pts.size();
+
+    // Create Nodes
+    std::vector<std::unique_ptr<Node>> nodes(n_points);
+    for (unsigned int i=0; i<n_points; i++)
+      nodes[i] = Node::build(pts[i], /*id*/ i);
+
+    // Create Elem, assign nodes
+    std::unique_ptr<Elem> elem = Elem::build(elem_type, /*parent*/ nullptr);
+
+    // Make sure we were passed consistent input to build this type of Elem
+    libmesh_error_msg_if(elem->n_nodes() != n_points,
+                         "Wrong number of points "
+                         << n_points
+                         << " provided to build a "
+                         << Utility::enum_to_string(elem_type));
+
+    for (unsigned int i=0; i<n_points; i++)
+      elem->set_node(i, nodes[i].get());
+
+    // Return Elem and Nodes we created
+    return std::make_pair(std::move(elem), std::move(nodes));
+  }
+
+  // Helper function to create the polyhedron element
+  Elem *
+  buildC0Polyhedron(std::vector<std::shared_ptr<Polygon>> sides, MeshBase & mesh)
+  {
+    std::unique_ptr<libMesh::Node> mid_elem_node;
+    std::unique_ptr<Elem> polyhedron = std::make_unique<C0Polyhedron>(sides, mid_elem_node);
+    if (mid_elem_node)
+      mesh.add_node(std::move(mid_elem_node));
+    polyhedron->set_id() = 0;
+    Elem * elem = mesh.add_elem(std::move(polyhedron));
+    libmesh_assert(dynamic_cast<C0Polyhedron *>(elem));
+    mesh.prepare_for_use();
+
+    return elem;
+  }
+
+  // Helper function to factor out common tests
+  void testC0PolygonMethods(MeshBase & mesh,
+                           unsigned int n_sides)
+  {
+    Elem * elem = mesh.query_elem_ptr(0);
+    bool found_elem = elem;
+    mesh.comm().max(found_elem);
+    CPPUNIT_ASSERT(found_elem);
+
+    if (!elem)
+      return;
+
+    CPPUNIT_ASSERT_EQUAL(elem->type(), C0POLYGON);
+    CPPUNIT_ASSERT_EQUAL(elem->n_nodes(), n_sides);
+    CPPUNIT_ASSERT_EQUAL(elem->n_sub_elem(), n_sides);
+    CPPUNIT_ASSERT_EQUAL(elem->n_sides(), n_sides);
+    CPPUNIT_ASSERT_EQUAL(elem->n_vertices(), n_sides);
+    CPPUNIT_ASSERT_EQUAL(elem->n_edges(), n_sides);
+
+    // Even number of sides
+    if (!(n_sides%2))
+      {
+        const unsigned int nsover2 = n_sides/2;
+        for (auto i : make_range(nsover2))
+          {
+            CPPUNIT_ASSERT_EQUAL(elem->opposite_side(i), i+nsover2);
+            CPPUNIT_ASSERT_EQUAL(elem->opposite_side(i+nsover2), i);
+          }
+      }
+
+    for (unsigned int i : make_range(n_sides))
+      {
+        CPPUNIT_ASSERT(elem->is_vertex(i));
+        CPPUNIT_ASSERT(!elem->is_edge(i));
+        CPPUNIT_ASSERT(!elem->is_face(i));
+        CPPUNIT_ASSERT(elem->is_node_on_side(i,i));
+        CPPUNIT_ASSERT(elem->is_node_on_edge(i,i));
+        CPPUNIT_ASSERT(elem->is_node_on_side((i+1)%n_sides,i));
+        CPPUNIT_ASSERT(elem->is_node_on_edge((i+1)%n_sides,i));
+        std::vector<unsigned int> nodes = elem->nodes_on_side(i);
+        CPPUNIT_ASSERT_EQUAL(nodes.size(), std::size_t(2));
+        CPPUNIT_ASSERT(nodes[0] == i ||
+                       nodes[1] == i);
+        CPPUNIT_ASSERT(nodes[0] == (i+1)%n_sides ||
+                       nodes[1] == (i+1)%n_sides);
+        std::vector<unsigned int> edge_nodes = elem->nodes_on_edge(i);
+        CPPUNIT_ASSERT(nodes == edge_nodes);
+
+
+        CPPUNIT_ASSERT_EQUAL(elem->local_side_node(i,0), i);
+        CPPUNIT_ASSERT_EQUAL(elem->local_side_node(i,1), (i+1)%n_sides);
+        CPPUNIT_ASSERT_EQUAL(elem->local_edge_node(i,0), i);
+        CPPUNIT_ASSERT_EQUAL(elem->local_edge_node(i,1), (i+1)%n_sides);
+
+        auto edge = elem->side_ptr(i);
+        CPPUNIT_ASSERT_EQUAL(edge->type(), EDGE2);
+        CPPUNIT_ASSERT_EQUAL(edge->node_ptr(0), mesh.node_ptr(i));
+        CPPUNIT_ASSERT_EQUAL(edge->node_ptr(1), mesh.node_ptr((i+1)%n_sides));
+      }
+
+    CPPUNIT_ASSERT(!elem->is_flipped());
+    elem->flip(&mesh.get_boundary_info());
+    CPPUNIT_ASSERT(elem->is_flipped());
+    elem->flip(&mesh.get_boundary_info());
+  }
+
+
+  // Helper function to factor out common tests
+  void testC0PolyhedronMethods(MeshBase & mesh, bool has_midnode)
+  {
+    Elem * elem = mesh.query_elem_ptr(0);
+    bool found_elem = elem;
+    mesh.comm().max(found_elem);
+    CPPUNIT_ASSERT(found_elem);
+
+    if (!elem)
+      return;
+
+    CPPUNIT_ASSERT_EQUAL(elem->type(), C0POLYHEDRON);
+
+    const int V = elem->n_vertices();
+    const int E = elem->n_edges();
+    const int F = elem->n_faces();
+
+    if (!has_midnode)
+      CPPUNIT_ASSERT_EQUAL(int(elem->n_nodes()), V);
+    else
+      CPPUNIT_ASSERT_EQUAL(int(elem->n_nodes()), V + 1);
+    CPPUNIT_ASSERT_EQUAL(int(elem->n_sides()), F);
+
+    // Euler characteristic for polygons homeomorphic to spheres is 2
+    CPPUNIT_ASSERT_EQUAL(V-E+F, 2);
+
+    int FE = 0;
+    int FV = 0;
+
+    std::vector<int> sides_on_vertex(V, 0);
+    for (auto s : make_range(F))
+      {
+        auto side = elem->build_side_ptr(s);
+        CPPUNIT_ASSERT_EQUAL(side->type(), C0POLYGON);
+        FE += side->n_edges();
+        const int SV = side->n_vertices();
+        FV += SV;
+
+        auto nos = elem->nodes_on_side(s);
+        CPPUNIT_ASSERT_EQUAL(nos.size(), std::size_t(SV));
+
+        for (auto v : make_range(SV))
+          {
+            Node * sidenode = side->node_ptr(v);
+            const unsigned int n = elem->get_node_index(sidenode);
+            CPPUNIT_ASSERT(n != invalid_uint);
+            ++sides_on_vertex[n];
+
+            // We're just looking at first order so far
+            CPPUNIT_ASSERT(side->is_vertex(v));
+            CPPUNIT_ASSERT(!side->is_edge(v));
+            CPPUNIT_ASSERT(elem->is_vertex(n));
+            CPPUNIT_ASSERT(!elem->is_edge(n));
+            CPPUNIT_ASSERT(!elem->is_face(n));
+            CPPUNIT_ASSERT(elem->is_node_on_side(n, s));
+            CPPUNIT_ASSERT(std::find(nos.begin(), nos.end(), n) != nos.end());
+          }
+      }
+
+    // We hit every edge from 2 faces
+    CPPUNIT_ASSERT_EQUAL(E*2, FE);
+
+    // We hit every vertex from at least 3 faces
+    CPPUNIT_ASSERT_LESSEQUAL(FV, V*3);  // V*3 <= FV
+    for (auto sov : sides_on_vertex)
+      CPPUNIT_ASSERT_LESSEQUAL(sov, 3); // 3 <= sov
+
+    CPPUNIT_ASSERT(!elem->is_flipped());
+  }
+
+
+
+  void testElemVolume(const Elem * elem,
+                      Real expected_volume)
+  {
+    const Real derived_volume = elem->volume();
+    const Real base_volume = elem->Elem::volume();
+    LIBMESH_ASSERT_FP_EQUAL(base_volume, derived_volume, TOLERANCE*TOLERANCE);
+    LIBMESH_ASSERT_FP_EQUAL(derived_volume, expected_volume, TOLERANCE*TOLERANCE);
+  }
+
+
+
+  void testC0PolyhedronCube()
+  {
+    ReplicatedMesh mesh(*TestCommWorld);
+
+    mesh.add_point(Point(0, 0, 0), 0);
+    mesh.add_point(Point(1, 0, 0), 1);
+    mesh.add_point(Point(1, 1, 0), 2);
+    mesh.add_point(Point(0, 1, 0), 3);
+    mesh.add_point(Point(0, 0, 1), 4);
+    mesh.add_point(Point(1, 0, 1), 5);
+    mesh.add_point(Point(1, 1, 1), 6);
+    mesh.add_point(Point(0, 1, 1), 7);
+
+    // See notes in elem_test.h
+    const std::vector<std::vector<unsigned int>> nodes_on_side =
+      { {0, 1, 2, 3},   // min z
+        {0, 1, 5, 4},   // min y
+        {2, 6, 5, 1},   // max x
+        {2, 3, 7, 6},   // max y
+        {0, 4, 7, 3},   // min x
+        {5, 6, 7, 4} }; // max z
+
+    // Build all the sides.
+    std::vector<std::shared_ptr<Polygon>> sides(nodes_on_side.size());
+
+    for (auto s : index_range(nodes_on_side))
+      {
+        const auto & nodes_on_s = nodes_on_side[s];
+        sides[s] = std::make_shared<C0Polygon>(nodes_on_s.size());
+        for (auto i : index_range(nodes_on_s))
+          sides[s]->set_node(i, mesh.node_ptr(nodes_on_s[i]));
+      }
+
+    const auto poly = dynamic_cast<C0Polyhedron *>(buildC0Polyhedron(sides, mesh));
+    testElemVolume(poly, 1);
+  #ifdef LIBMESH_ENABLE_EXCEPTIONS
+    testC0PolyhedronMethods(mesh, /*midnode*/false);
+
+    // Check routine for subtet side to poly side mapping
+    // NOTE: this test is hard coded to the elements used right now (to be reworked)
+    const auto subtet0_sides_to_poly_sides = poly->subelement_sides_to_poly_sides(0);
+    CPPUNIT_ASSERT_EQUAL(libMesh::invalid_int, subtet0_sides_to_poly_sides[0]);
+    CPPUNIT_ASSERT_EQUAL(1, subtet0_sides_to_poly_sides[1]);
+    CPPUNIT_ASSERT_EQUAL(0, subtet0_sides_to_poly_sides[2]);
+    CPPUNIT_ASSERT_EQUAL(2, subtet0_sides_to_poly_sides[3]);
+  #else
+    testC0PolyhedronMethods(mesh, /*midnode*/true);
+  #endif
+  }
+
+
+
+  void testC0PolyhedronHexagonalPrism()
+  {
+    ReplicatedMesh mesh(*TestCommWorld);
+
+    mesh.add_point(Point(0, -2, 0), 0);
+    mesh.add_point(Point(-1, -1, 0), 1);
+    mesh.add_point(Point(-1, 1, 0), 2);
+    mesh.add_point(Point(0, 2, 0), 3);
+    mesh.add_point(Point(1, 1, 0), 4);
+    mesh.add_point(Point(1, -1, 0), 5);
+    mesh.add_point(Point(0, -2, 1), 6);
+    mesh.add_point(Point(-1, -1, 1), 7);
+    mesh.add_point(Point(-1, 1, 1), 8);
+    mesh.add_point(Point(0, 2, 1), 9);
+    mesh.add_point(Point(1, 1, 1), 10);
+    mesh.add_point(Point(1, -1, 1), 11);
+
+    // See notes in elem_test.h
+    // With this ordering, we'll need to use a mid-node to tetrahedralize it
+    const std::vector<std::vector<unsigned int>> nodes_on_side =
+      { {0, 1, 2, 3, 4, 5},
+        {0, 1, 7, 6},
+        {1, 2, 8, 7},
+        {2, 3, 9, 8},
+        {3, 4, 10, 9},
+        {4, 5, 11, 10},
+        {5, 0, 6, 11},
+        {6, 7, 8, 9, 10, 11} };
+
+    // Build all the sides.
+    std::vector<std::shared_ptr<Polygon>> sides(nodes_on_side.size());
+
+    for (auto s : index_range(nodes_on_side))
+      {
+        const auto & nodes_on_s = nodes_on_side[s];
+        sides[s] = std::make_shared<C0Polygon>(nodes_on_s.size());
+        for (auto i : index_range(nodes_on_s))
+          sides[s]->set_node(i, mesh.node_ptr(nodes_on_s[i]));
+      }
+
+    const auto poly = dynamic_cast<C0Polyhedron *>(buildC0Polyhedron(sides, mesh));
+    CPPUNIT_ASSERT_EQUAL((unsigned int)13, poly->n_nodes());  // we should have a mid node
+    testElemVolume(poly, 6);
+    testC0PolyhedronMethods(mesh, /*midnode*/true);
+
+    // Check routine for subtet side to poly side mapping
+    const auto subtet0_sides_to_poly_sides = poly->subelement_sides_to_poly_sides(0);
+    CPPUNIT_ASSERT_EQUAL(0, subtet0_sides_to_poly_sides[0]);
+    CPPUNIT_ASSERT_EQUAL(libMesh::invalid_int, subtet0_sides_to_poly_sides[1]);
+    CPPUNIT_ASSERT_EQUAL(libMesh::invalid_int, subtet0_sides_to_poly_sides[2]);
+    CPPUNIT_ASSERT_EQUAL(libMesh::invalid_int, subtet0_sides_to_poly_sides[3]);
+  }
+
+
+
+  // Helper function that builds the specified type of Elem from a
+  // vector of Points and returns the value of has_invertible_map()
+  // for that Elem.
+  bool test_elem_invertible(const std::vector<Point> & pts,
+                            ElemType elem_type)
+  {
+    // Construct Elem of desired type
+    auto [elem, nodes] = this->construct_elem(pts, elem_type);
+    libmesh_ignore(nodes);
+
+    // Return whether or not this Elem has an invertible map
+    return elem->has_invertible_map();
+  }
+
+  // Helper function for testing true_centroid() and volume() implementations for
+  // 3D elements
+  void test_true_centroid_and_volume(ElemType elem_type)
+  {
+    // Check that derived class true_centroid() gives same result as
+    // the base class Elem::true_centroid() on a 2x2x2 mesh of 10%
+    // distorted elements.
+    {
+      ReplicatedMesh mesh(*TestCommWorld);
+
+      MeshTools::Generation::build_cube(mesh,
+                                        /*nelem=*/2, /*nelem=*/2, /*nelem=*/2,
+                                        /*xmin=*/-1, /*xmax=*/1,
+                                        /*ymin=*/-1, /*ymax=*/1,
+                                        /*zmin=*/-1, /*zmax=*/1,
+                                        elem_type);
+
+      MeshTools::Modification::distort(mesh,
+                                       /*factor=*/0.1,
+                                       /*perturb_boundary=*/false);
+
+      for (const auto & elem : mesh.element_ptr_range())
+        {
+          Point derived_centroid = elem->true_centroid();
+          Point base_centroid = elem->Elem::true_centroid();
+
+          // Debugging: check results in detail
+          // auto flags = libMesh::out.flags();
+          // libMesh::out << std::scientific << std::setprecision(16);
+          // libMesh::out << "derived_centroid = " << derived_centroid << std::endl;
+          // libMesh::out << "base_centroid = " << base_centroid << std::endl;
+          // libMesh::out.flags(flags);
+
+          CPPUNIT_ASSERT(derived_centroid.absolute_fuzzy_equals(base_centroid, 50*TOLERANCE*TOLERANCE));
+
+          // Make sure that base class and "optimized" routines for computing the cell volume agree
+          Real derived_volume = elem->volume();
+          Real base_volume = elem->Elem::volume();
+          LIBMESH_ASSERT_FP_EQUAL(base_volume, derived_volume, 50*TOLERANCE*TOLERANCE);
+        }
+    }
+  }
+};
+
+CPPUNIT_TEST_SUITE_REGISTRATION( VolumeTest );

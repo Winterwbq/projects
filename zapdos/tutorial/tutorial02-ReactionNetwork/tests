@@ -1,0 +1,8 @@
+[Tests]
+  [tutorial02-ReactionNetwork]
+    type = Exodiff
+    input = 'transient-kinetics.i'
+    exodiff = 'transient-kinetics_out.e'
+    group = 'tutorial'
+  []
+[]

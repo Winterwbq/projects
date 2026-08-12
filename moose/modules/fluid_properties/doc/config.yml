@@ -1,0 +1,63 @@
+Content:
+    framework:
+        root_dir: framework/doc/content
+    fluid_properties:
+        root_dir: modules/fluid_properties/doc/content
+    misc:
+        root_dir: ${MOOSE_DIR}/modules/misc/doc/content
+    air:
+        root_dir: ${MOOSE_DIR}/modules/fluid_properties/contrib/air/doc/content/source
+        external: True
+    carbon_dioxide:
+        root_dir: ${MOOSE_DIR}/modules/fluid_properties/contrib/carbon_dioxide/doc/content/source
+        external: True
+    helium:
+        root_dir: ${MOOSE_DIR}/modules/fluid_properties/contrib/helium/doc/content/source
+        external: True
+    nitrogen:
+        root_dir: ${MOOSE_DIR}/modules/fluid_properties/contrib/nitrogen/doc/content/source
+        external: True
+    potassium:
+        root_dir: ${MOOSE_DIR}/modules/fluid_properties/contrib/potassium/doc/content/source
+        external: True
+    sodium:
+        root_dir: ${MOOSE_DIR}/modules/fluid_properties/contrib/sodium/doc/content/source
+        external: True
+
+Renderer:
+    type: MooseDocs.base.MaterializeRenderer
+
+Extensions:
+    MooseDocs.extensions.navigation:
+        name: MOOSE Fluid Properties Module
+        repo: https://github.com/idaholab/moose
+        home: /modules/fluid_properties/index.md
+    MooseDocs.extensions.appsyntax:
+        executable: ${MOOSE_DIR}/modules/fluid_properties
+        remove:
+            framework: !include framework/doc/remove.yml
+            fluid_properties: !include modules/fluid_properties/doc/remove.yml
+        unregister:
+            framework: !include framework/doc/unregister.yml
+        includes:
+            - framework/include
+            - modules/fluid_properties/include
+            - modules/misc/include
+            - ${MOOSE_DIR}/modules/fluid_properties/contrib/air/include
+            - ${MOOSE_DIR}/modules/fluid_properties/contrib/carbon_dioxide/include
+            - ${MOOSE_DIR}/modules/fluid_properties/contrib/helium/include
+            - ${MOOSE_DIR}/modules/fluid_properties/contrib/nitrogen/include
+            - ${MOOSE_DIR}/modules/fluid_properties/contrib/potassium/include
+            - ${MOOSE_DIR}/modules/fluid_properties/contrib/sodium/include
+    MooseDocs.extensions.common:
+        shortcuts: !include framework/doc/globals.yml
+    MooseDocs.extensions.acronym:
+        acronyms: !include framework/doc/acronyms.yml
+    MooseDocs.extensions.template:
+        active: True
+    MooseDocs.extensions.sqa:
+        active: True
+        reports: !include modules/fluid_properties/doc/sqa_reports.yml
+        categories:
+            framework: !include framework/doc/sqa_framework.yml
+            fluid_properties: !include modules/fluid_properties/doc/sqa_fluid_properties.yml

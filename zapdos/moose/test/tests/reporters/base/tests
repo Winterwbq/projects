@@ -1,0 +1,84 @@
+[Tests]
+  issues = '#11323'
+  design = 'Reporters/index.md'
+  [base]
+    type = RunApp
+    input = base.i
+    allow_test_objects = true
+    min_parallel = 2
+
+    requirement = "The system shall have a system for computing and retrieving aggregate values of arbitrary type."
+  []
+
+  [errors]
+    requirement = 'The system shall report a reasonable error when declaring a Reporter value and'
+
+    [missing_param]
+      type = RunException
+      input = errors.i
+      allow_test_objects = true
+      cli_args = 'Reporters/error_test/missing_param=true'
+      expect_err = 'When getting a ReporterValueName, failed to get a parameter with the name "some_missing_parm".'
+
+      detail = 'the parameter that contains the name was not found,'
+    []
+    [bad_param]
+      type = RunException
+      input = errors.i
+      allow_test_objects = true
+      cli_args = 'Reporters/error_test/bad_param=true'
+      expect_err = 'Supplied parameter with name "bad_param" of type "bool" is not an expected type for getting a Reporter value.'
+
+      detail = 'the parameter that contains the name is not of the correct type,'
+    []
+    [already_declared]
+      type = RunException
+      input = errors.i
+      allow_test_objects = true
+      cli_args = 'Reporters/error_test/already_declared=true'
+      expect_err = 'While declaring a Reporter value with the name "value_name" and type "double",.*a Reporter with the same name has already been declared.'
+
+      detail = 'a Reporter with the same name has already been declared, and'
+    []
+    [requested_different_type]
+      type = RunException
+      input = errors.i
+      allow_test_objects = true
+      cli_args = 'Reporters/error_test/requested_different_type=true'
+      expect_err = 'While declaring a Reporter value with the name "value_name" and type "double",.*a Reporter with the same name has been requested with a different type.'
+
+      detail = 'a Reporter with the same name but a different type has been requested.'
+    []
+  []
+
+  [special_types]
+    type = CSVDiff
+    input = special_types.i
+    csvdiff = 'special_types_out.csv special_types_out_vpp_0001.csv'
+    allow_test_objects = true
+
+    requirement = 'The system shall support the mixing of computing and retreiving aggregate values of arbitrary types with the Postprocessor and VectorPostprocessor system.'
+  []
+
+  [conditional_restore]
+    type = RunApp
+    input = 'restore_test.i'
+    expect_out = 'Reporter Restoration Summary:
+--------------------------------------
+|    Name     |   Type   | Restored? |
+--------------------------------------
+| a/broadcast | Reporter | NO        |
+| a/gather    | Reporter | NO        |
+| a/int       | Reporter | YES       |
+| a/real      | Reporter | NO        |
+| a/scatter   | Reporter | NO        |
+| a/string    | Reporter | NO        |
+| a/vector    | Reporter | NO        |
+--------------------------------------'
+    match_literal = true
+    capture_perf_graph = false
+
+    issues = '#30394'
+    requirement = 'The system shall restore non-postprocessor reporter values to their old state when a timestep is repeated if and only if an old value is requested.'
+  []
+[]

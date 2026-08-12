@@ -1,0 +1,50 @@
+//* This file is part of Zapdos, an open-source
+//* application for the simulation of plasmas
+//* https://github.com/shannon-lab/zapdos
+//*
+//* Zapdos is powered by the MOOSE Framework
+//* https://www.mooseframework.org
+//*
+//* Licensed under LGPL 2.1, please see LICENSE for details
+//* https://www.gnu.org/licenses/lgpl-2.1.html
+
+#include "SakiyamaElectronDiffusionBC.h"
+#include "Zapdos.h"
+
+registerMooseObject("ZapdosApp", SakiyamaElectronDiffusionBC);
+
+InputParameters
+SakiyamaElectronDiffusionBC::validParams()
+{
+  InputParameters params = ADIntegratedBC::validParams();
+  params.addRequiredCoupledVar("electron_energy", "The mean electron energy density in log form");
+  params.addRequiredParam<Real>("position_units", "Units of position.");
+  params.addClassDescription("Kinetic electron boundary condition"
+                             " (Based on [!cite](sakiyama2006corona))");
+  return params;
+}
+
+SakiyamaElectronDiffusionBC::SakiyamaElectronDiffusionBC(const InputParameters & parameters)
+  : ADIntegratedBC(parameters),
+
+    _r_units(1. / getParam<Real>("position_units")),
+
+    // Coupled Variables
+    _mean_en(adCoupledValue("electron_energy")),
+
+    _massem(getMaterialProperty<Real>("mass" + _var.name())),
+    _v_thermal(0)
+{
+}
+
+ADReal
+SakiyamaElectronDiffusionBC::computeQpResidual()
+{
+  using std::exp;
+  using std::sqrt;
+
+  _v_thermal = sqrt(8 * ZAPDOS_CONSTANTS::e * 2.0 / 3 * exp(_mean_en[_qp] - _u[_qp]) /
+                    (libMesh::pi * _massem[_qp]));
+
+  return _test[_i][_qp] * _r_units * (0.25 * _v_thermal * exp(_u[_qp]));
+}

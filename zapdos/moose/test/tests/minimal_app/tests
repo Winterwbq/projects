@@ -1,0 +1,17 @@
+[Tests]
+  design = 'MooseApp.md'
+  issues = '#6126'
+
+  [./minimal]
+    # Make sure --minimal flag is working
+    type = RunApp
+    cli_args = '--minimal --list-constructed-objects'
+    # This list is tied to the execution order of the setup tasks
+    expect_out = "DefaultNonlinearConvergence\nDefaultSteadyStateConvergence\nFEProblem\nGeneratedMesh"
+    input = ''
+    input_switch = ''
+    display_required = True
+
+    requirement = "The system shall support the programmatic creation of a simulation tools without the need of an input file."
+  [../]
+[]

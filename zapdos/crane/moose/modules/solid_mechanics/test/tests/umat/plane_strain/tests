@@ -1,0 +1,18 @@
+[Tests]
+  [plane_strain]
+    type = 'Exodiff'
+    input = 'plane_strain.i'
+    exodiff = 'plane_strain_out.e'
+    # installation_type=in_tree: see #25279
+    capabilities = 'library_mode=dynamic & installation_type=in_tree'
+    valgrind = 'NONE'
+  []
+  [generalized_plane_strain]
+    type = 'Exodiff'
+    input = 'generalized_plane_strain.i'
+    exodiff = 'generalized_plane_strain_out.e'
+    # installation_type=in_tree: see #25279
+    capabilities = 'library_mode=dynamic & installation_type=in_tree'
+    valgrind = 'NONE'
+  []
+[]

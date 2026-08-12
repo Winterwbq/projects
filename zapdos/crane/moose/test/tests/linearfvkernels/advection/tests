@@ -1,0 +1,54 @@
+[Tests]
+  design = 'LinearFVAdvection.md LinearFVAdvectionDiffusionOutflowBC.md'
+  issues = '#25722'
+  [mms-1d-upwind]
+    type = MMSTest
+    input = 'test.py'
+    test_case = TestAdvection1DUpwind
+    requirement = 'The system shall display first-order convergence for advection problems with upwind interpolation solved using a linear finite volume system on a one-dimensional domain.'
+    max_threads = 1 # see libmesh issue #3808
+  []
+  [mms-1d-linear]
+    type = MMSTest
+    input = 'test.py'
+    test_case = TestAdvection1DLinear
+    requirement = 'The system shall display second-order convergence for advection problems with linear interpolation solved using a linear finite volume system on a one-dimensional domain.'
+    max_threads = 1 # see libmesh issue #3808
+  []
+  [mms-2d-upwind]
+    type = MMSTest
+    input = 'test.py'
+    test_case = TestAdvection2DUpwind
+    requirement = 'The system shall display first-order convergence for advection problems with upwind interpolation solved using a linear finite volume system on a two-dimensional orthogonal mesh.'
+    max_threads = 1 # see libmesh issue #3808
+  []
+  [mms-2d-linear]
+    type = MMSTest
+    input = 'test.py'
+    test_case = TestAdvection2DLinear
+    requirement = 'The system shall display second-order convergence for advection problems with linear interpolation solved using a linear finite volume system on a two-dimensional orthogonal mesh.'
+    max_threads = 1 # see libmesh issue #3808
+  []
+  [mms-2d-upwind-tris]
+    type = MMSTest
+    input = 'test.py'
+    test_case = TestAdvection2DUpwindTris
+    requirement = 'The system shall display first-order convergence for advection problems with upwind interpolation solved using a linear finite volume system on a two-dimensional nonorthogonal mesh.'
+    max_threads = 1 # see libmesh issue #3808
+  []
+  [mms-2d-linear-tris]
+    type = MMSTest
+    input = 'test.py'
+    test_case = TestAdvection2DLinearTris
+    requirement = 'The system shall display first-order convergence for advection problems with linear interpolation solved using a linear finite volume system on a two-dimensional nonorthogonal mesh.'
+    # This is first order in the original implementation as well. At some point somebody could take a look at the error terms.
+    max_threads = 1 # see libmesh issue #3808
+  []
+  [mms-2d-rz]
+    type = MMSTest
+    input = 'test.py'
+    test_case = TestAdvection2DRZ
+    requirement = 'The system shall display second-order convergence for advection problems with linear interpolation solved using a linear finite volume system on a two-dimensional orthogonal mesh in cylindrical coordinate system.'
+    max_threads = 1 # see libmesh issue #3808
+  []
+[]

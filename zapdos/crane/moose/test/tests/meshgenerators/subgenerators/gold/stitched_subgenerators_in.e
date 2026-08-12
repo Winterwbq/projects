@@ -1,0 +1,1 @@
+../../stitch_mesh_generator/gold/stitched_mesh_generator_in.e

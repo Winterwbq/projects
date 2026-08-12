@@ -1,0 +1,211 @@
+/* File: wasp.i */
+%begin %{
+#define Py_LIMITED_API 0x03080000
+%}
+%rename("BaseInterpreter") Interpreter;
+
+// Enable Python deriving, protected data wrapping, and unit test threading
+%module(directors="1", allprotected="1", threads="1") wasp
+
+// Ignore protected errors stringstream in ServerImpl due to issues in wrap
+%ignore wasp::lsp::ServerImpl::errors;
+
+// Rename ServerImpl to more appropriate BaseServer for use by Python class
+%rename(BaseServer) wasp::lsp::ServerImpl;
+
+// Enable director so ServerImpl can be implemented in derived Python class
+%feature("director") wasp::lsp::ServerImpl;
+
+// Return text from Python to C++ in reference it received with directorout
+%typemap(directorout) bool getHoverDisplayText
+{
+  if ($input == Py_None) 
+  {
+    //fprintf(stderr, "[SWIG] Returned None\n");
+    arg0 = "";
+    $result = false;
+  } else 
+  {
+    //fprintf(stderr, "[SWIG] Got Python object of type: %s\n", Py_TYPE($input)->tp_name);
+
+    char* buffer = 0;
+    int alloc = SWIG_OLDOBJ;
+    if (SWIG_AsCharPtr($input, &buffer, &alloc) == 0) 
+    {
+      arg0 = buffer;
+      $result = true;
+    } 
+    else {
+      //fprintf(stderr, "[SWIG] SWIG_AsCharPtr failed\n");
+      $result = false;
+    }
+  }
+}
+
+
+
+// Enable director so Connection can be implemented in derived Python class
+%feature("director") wasp::lsp::Connection;
+
+// Use typemaps to output primitive type arguments set by reference passing
+%include typemaps.i
+%apply int  & OUTPUT { int  & };
+%apply bool & OUTPUT { bool & };
+
+// Add handler to capture and provide details from Python thrown exceptions
+%exception {
+    try { $action }
+    catch (Swig::DirectorException &e) { SWIG_fail; }
+}
+
+%include decl.h
+
+%include std_pair.i
+%include std_map.i
+%include std_vector.i
+%include std_container.i
+%include std_sstream.i
+%include std_shared_ptr.i
+
+%shared_ptr(wasp::AbstractDefinition)
+%shared_ptr(wasp::Definition)
+%shared_ptr(wasp::AliasedDefinition)
+%shared_ptr(wasp::lsp::SymbolIterator)
+%shared_ptr(wasp::lsp::Connection)
+%shared_ptr(wasp::lsp::ThreadConnection)
+%shared_ptr(wasp::lsp::IOStreamConnection)
+%{
+#define SWIG_FILE_INIT
+#include "utils.h"
+#include "location.hh"
+#include "Object.h"
+#include "Iterator.h"
+#include "Format.h"
+#include "Definition.h"
+#include "TokenPool.h"
+#include "TreeNodePool.h"
+#include "Interpreter.h"
+#include "SONInterpreter.h"
+#include "SONNodeView.h"
+#include "DDInterpreter.h"
+#include "DDINodeView.h"
+#include "EDDInterpreter.h"
+#include "EDDINodeView.h"
+#include "HITInterpreter.h"
+#include "HITNodeView.h"
+#include "SIRENInterpreter.h"
+#include "HIVE.h"
+#include "LSP.h"
+#include "ServerImpl.h"
+#include "ClientImpl.h"
+#include "SymbolIterator.h"
+#include "Connection.h"
+#include "ThreadConnection.h"
+#include "IOStreamConnection.h"
+%}
+
+// Instantiate templates used by wasp
+%template(StringDataObject) std::pair<std::string,wasp::DataObject>;
+%template(StringDataArray) std::pair<std::string,wasp::DataArray>;
+%template(StringValue) std::pair<std::string,wasp::Value>;
+%template(VectorDiagnostic) std::vector<wasp::Diagnostic>;
+
+//---------------------------------------------------------------------------//
+// IMPORTS
+//---------------------------------------------------------------------------//
+// Things that are needed only to support the main types.
+%include "location.hh"
+%include "Object.h"
+%include "Iterator.h"
+%include "Definition.h"
+%include "TokenPool.h"
+%include "TreeNodePool.h"
+
+// Various interpreters
+%include "Interpreter.h"
+%include "SONInterpreter.h"
+%include "DDInterpreter.h"
+%include "EDDInterpreter.h"
+%include "HITInterpreter.h"
+%include "SIRENInterpreter.h"
+
+// Components for LSP
+%include "LSP.h"
+%include "ServerImpl.h"
+%include "ClientImpl.h"
+%include "SymbolIterator.h"
+%include "Connection.h"
+%include "ThreadConnection.h"
+%include "IOStreamConnection.h"
+
+// Various node views 
+%include "SONNodeView.h"
+%include "DDINodeView.h"
+%include "EDDINodeView.h"
+%include "HITNodeView.h"
+
+// Extend the NodeView wrapper class to include some necessary python functions
+%extend wasp::NodeView {
+  wasp::Iterator<wasp::NodeView> __iter__()
+  {
+    return self->begin();
+  }
+};
+
+%extend wasp::Iterator {
+  wasp::Iterator* __iter__()
+  {
+    return self;
+  }
+
+  wasp::Iterator __next__()
+  {
+    return self->next();
+  }
+};
+
+%feature("pythonappend") wasp::Iterator::__next__()
+%{
+   if not val:
+     raise StopIteration
+%}
+
+// Validation engine
+%include "HIVE.h"
+
+%template(TokenPool) wasp::TokenPool< std::uint8_t,std::uint32_t,std::uint32_t > ;
+%template(TreeNodePool) wasp::TreeNodePool< std::uint8_t,std::uint32_t,wasp::TokenPool< std::uint8_t,std::uint32_t,std::uint32_t > > ;
+%template(Interpreter) wasp::Interpreter< wasp::TreeNodePool< std::uint8_t,std::uint32_t,wasp::TokenPool< std::uint8_t,std::uint32_t,std::uint32_t > > >;
+%template(create_definition) wasp::HIVE::create_definition<wasp::AbstractDefinition,wasp::NodeView>;
+%template(validateSON)  wasp::HIVE::validate<wasp::SONNodeView, wasp::SONNodeView>;
+%template(validateDDI)  wasp::HIVE::validate<wasp::SONNodeView, wasp::DDINodeView>;
+%template(validateEDDI) wasp::HIVE::validate<wasp::SONNodeView, wasp::EDDINodeView>;
+%template(validateHIT)  wasp::HIVE::validate<wasp::SONNodeView, wasp::HITNodeView>;
+
+%template(DefaultSONInterpreter) wasp::SONInterpreter<>;
+%template(DefaultDDInterpreter) wasp::DDInterpreter<>;
+%template(DefaultEDDInterpreter) wasp::EDDInterpreter<>;
+%template(DefaultHITInterpreter) wasp::HITInterpreter<>;
+%template(DefaultSIRENInterpreter) wasp::SIRENInterpreter<>;
+
+%template(FilePushIterator) wasp::Iterator<wasp::NodeView,wasp::FilePush>;
+%template(SONFilePushIterator) wasp::Iterator<wasp::SONNodeView,wasp::FilePush>;
+%template(DDIFilePushIterator) wasp::Iterator<wasp::DDINodeView,wasp::FilePush>;
+%template(EDDIFilePushIterator) wasp::Iterator<wasp::EDDINodeView,wasp::FilePush>;
+%template(HITFilePushIterator) wasp::Iterator<wasp::HITNodeView,wasp::FilePush>;
+
+%template(Iterator) wasp::Iterator<wasp::NodeView>;
+%template(SONIterator) wasp::Iterator<wasp::SONNodeView>;
+%template(DDIIterator) wasp::Iterator<wasp::DDINodeView>;
+%template(EDDIIterator) wasp::Iterator<wasp::EDDINodeView>;
+%template(HITIterator) wasp::Iterator<wasp::HITNodeView>;
+
+%template(VectorNodeView) std::vector<wasp::NodeView>;
+%template(VectorSONNodeView) std::vector<wasp::SONNodeView>;
+%template(VectorDDINodeView) std::vector<wasp::DDINodeView>;
+%template(VectorEDDINodeView) std::vector<wasp::EDDINodeView>;
+%template(VectorHITNodeView) std::vector<wasp::HITNodeView>;
+%template(VectorString) std::vector<std::string>;
+
+// Add in the major pieces of python, just to streamline the integration
+%pythoncode "${CMAKE_CURRENT_SOURCE_DIR}/wasp.py.in"

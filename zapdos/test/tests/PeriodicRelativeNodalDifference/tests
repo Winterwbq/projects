@@ -1,0 +1,7 @@
+[Tests]
+  [Sample_Periodic_Diffusion]
+    type = 'Exodiff'
+    input = 'Sample_Periodic_Diffusion.i'
+    exodiff = 'Sample_Periodic_Diffusion_out.e'
+  []
+[]

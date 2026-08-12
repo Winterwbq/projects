@@ -1,0 +1,24 @@
+[submodule "contrib/metaphysicl"]
+	path = contrib/metaphysicl
+	url = ../../libMesh/MetaPhysicL
+[submodule "contrib/timpi"]
+	path = contrib/timpi
+	url = ../../libMesh/TIMPI
+[submodule "m4/autoconf-submodule"]
+	path = m4/autoconf-submodule
+	url = ../../libMesh/autoconf-submodule
+[submodule "contrib/poly2tri/poly2tri"]
+	path = contrib/poly2tri/poly2tri
+	url = ../../jhasse/poly2tri.git
+[submodule "contrib/eigen/git"]
+	path = contrib/eigen/git
+	url = https://gitlab.com/libeigen/eigen.git
+[submodule "contrib/netcdf/netcdf-c"]
+	path = contrib/netcdf/netcdf-c
+	url = ../../Unidata/netcdf-c
+[submodule "contrib/nanoflann/nanoflann"]
+	path = contrib/nanoflann/nanoflann
+	url = https://github.com/jlblancoc/nanoflann.git
+[submodule "contrib/netgen/netgen"]
+	path = contrib/netgen/netgen
+	url = ../../libMesh/netgen.git

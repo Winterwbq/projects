@@ -1,0 +1,7 @@
+id,kind,target,parameter_ev,points,energy_min_ev,energy_max_ev,cross_section_max_m2,table
+cu_elastic,ELASTIC,Cu,8.63e-06,85,0.02564,794328.0,4.258e-18,/Users/bingqingwang/projects/cu_pvd_hybrid/data/cross_sections/cu_siglo/tables/cu_elastic.csv
+cu_excitation_ex2,EXCITATION,Cu -> Cu(EX2),1.5,45,1.5,794328.0,2.93757e-20,/Users/bingqingwang/projects/cu_pvd_hybrid/data/cross_sections/cu_siglo/tables/cu_excitation_ex2.csv
+cu_excitation_ex3,EXCITATION,Cu -> Cu(EX3),1.5,52,1.5,794328.0,2.2403e-20,/Users/bingqingwang/projects/cu_pvd_hybrid/data/cross_sections/cu_siglo/tables/cu_excitation_ex3.csv
+cu_excitation_ex1,EXCITATION,Cu -> Cu( EX1),3.8,52,3.8,794328.0,5.11495e-19,/Users/bingqingwang/projects/cu_pvd_hybrid/data/cross_sections/cu_siglo/tables/cu_excitation_ex1.csv
+cu_excitation_ex4,EXCITATION,Cu -> Cu (EX4),5.1,50,5.1,794328.0,1.27317e-22,/Users/bingqingwang/projects/cu_pvd_hybrid/data/cross_sections/cu_siglo/tables/cu_excitation_ex4.csv
+cu_ionization,IONIZATION,Cu -> Cu^+,7.724,48,7.724,1000000.0,3.20699e-20,/Users/bingqingwang/projects/cu_pvd_hybrid/data/cross_sections/cu_siglo/tables/cu_ionization.csv

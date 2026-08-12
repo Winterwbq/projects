@@ -1,0 +1,132 @@
+//* This file is part of Crane, an open-source
+//* application for plasma chemistry and thermochemistry
+//* https://github.com/lcpp-org/crane
+//*
+//* Crane is powered by the MOOSE Framework
+//* https://www.mooseframework.org
+//*
+//* Licensed under LGPL 2.1, please see LICENSE for details
+//* https://www.gnu.org/licenses/lgpl-2.1.html
+
+#include "ElectricField.h"
+
+#include "CraneUtils.h"
+
+// MOOSE includes
+#include "MooseVariable.h"
+
+registerMooseObject("CraneApp", ElectricField);
+
+InputParameters
+ElectricField::validParams()
+{
+  InputParameters params = Material::validParams();
+  params += CraneUtils::propertyFileParams();
+  params.makeParamNotRequired("property_file");
+  params.set<RelativeFileName>("property_file") = "electron_mobility.txt";
+  params.addParam<bool>("use_log", false, "Whether or not to use logarithmic form.");
+  params.addCoupledVar("electron_density", "The electron density.");
+  params.addCoupledVar("neutral_density", "The neutral gas density.");
+  return params;
+}
+
+ElectricField::ElectricField(const InputParameters & parameters)
+  : Material(parameters),
+  _reduced_field(declareProperty<Real>("reduced_field")),
+  _voltage(getMaterialProperty<Real>("voltage")),
+  _gap_length(getMaterialProperty<Real>("gap_length")),
+  _resistance(getMaterialProperty<Real>("resistance")),
+  _gap_area(getMaterialProperty<Real>("gap_area")),
+  _Vdr(declareProperty<Real>("Vdr")),
+  _electron_density(coupledValue("electron_density")),
+  _gas_density(isCoupled("neutral_density") ? coupledValue("neutral_density") : _zero),
+  _reduced_field_old(getMaterialPropertyOld<Real>("reduced_field")),
+  _use_log(getParam<bool>("use_log")),
+  _n_gas(getMaterialProperty<Real>("n_gas"))
+{
+  const auto [reduced_field, mobility] = CraneUtils::getReactionRates(*this);
+  _mobility.setData(reduced_field, mobility);
+}
+
+void
+ElectricField::initQpStatefulProperties()
+{
+  Real mult1;
+  if (isCoupled("neutral_density"))
+  {
+    if (_use_log)
+      mult1 = std::exp(_gas_density[_qp]);
+    else
+      mult1 = _gas_density[_qp];
+  }
+  else
+  {
+    if (_use_log)
+      mult1 = _n_gas[_qp] * 6.022e23;
+    else
+      mult1 = _n_gas[_qp];
+  }
+    // mult1 = _n_gas[_qp] * 6.022e23;
+
+  _reduced_field[_qp] = _voltage[_qp] / _gap_length[_qp] / mult1;
+  // initialize the reduced field
+  // This becomes reduced_field_old in subsequent calls to computeQpProperties
+  // if (_use_log)
+  // {
+    // _reduced_field[_qp] = _voltage[_qp] / _gap_length[_qp] / std::exp(_gas_density[_qp]);
+  // }
+  // else
+  // {
+    // _reduced_field[_qp] = _voltage[_qp] / _gap_length[_qp] / _gas_density[_qp];
+  // }
+}
+
+void
+ElectricField::computeQpProperties()
+{
+  Real mult1;
+  if (isCoupled("neutral_density"))
+  {
+    if (_use_log)
+      mult1 = std::exp(_gas_density[_qp]) * 6.022e23;
+    else
+      mult1 = _gas_density[_qp];
+  }
+  else
+  {
+    if (_use_log)
+      mult1 = _n_gas[_qp] * 6.022e23;
+    else
+      mult1 = _n_gas[_qp];
+  }
+    // mult1 = _n_gas[_qp] * 6.022e23;
+
+  if (_use_log)
+  {
+    _Vdr[_qp] = mult1 * _reduced_field_old[_qp] * _mobility.sample(_reduced_field_old[_qp]);
+    Real current = 1.602e-19 * _gap_area[_qp] * std::exp(_electron_density[_qp]) * 6.022e23 * _Vdr[_qp];
+
+    _reduced_field[_qp] = _voltage[_qp] / ( _gap_length[_qp] + _resistance[_qp] * current /
+      ( _reduced_field_old[_qp]*mult1 ) ) / mult1;
+
+    // _Vdr[_qp] = std::exp(_gas_density[_qp]) * _reduced_field_old[_qp] * _mobility.sample(_reduced_field_old[_qp]);
+    // Real current = 1.602e-19 * _gap_area[_qp] * std::exp(_electron_density[_qp]) * _Vdr[_qp];
+    //
+    // _reduced_field[_qp] = _voltage[_qp] / ( _gap_length[_qp] + _resistance[_qp] * current /
+    //   ( _reduced_field_old[_qp]*std::exp(_gas_density[_qp]) ) ) / std::exp(_gas_density[_qp]);
+  }
+  else
+  {
+    _Vdr[_qp] = mult1 * _reduced_field_old[_qp] * _mobility.sample(_reduced_field_old[_qp]);
+    Real current = 1.602e-19 * _gap_area[_qp] * _electron_density[_qp] * _Vdr[_qp];
+
+    _reduced_field[_qp] = _voltage[_qp] / ( _gap_length[_qp] + _resistance[_qp] * current /
+      ( _reduced_field_old[_qp]*mult1 ) ) / mult1;
+    // _Vdr[_qp] = _gas_density[_qp] * _reduced_field_old[_qp] * _mobility.sample(_reduced_field_old[_qp]);
+    // Real current = 1.602e-19 * _gap_area[_qp] * _electron_density[_qp] * _Vdr[_qp];
+    //
+    // _reduced_field[_qp] = _voltage[_qp] / ( _gap_length[_qp] + _resistance[_qp] * current /
+    //   ( _reduced_field_old[_qp]*_gas_density[_qp] ) ) / _gas_density[_qp];
+  }
+
+}

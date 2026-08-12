@@ -1,0 +1,136 @@
+0.0.0
+  * Made TIMPI code independent of libMesh
+
+0.1.0
+  * Split TIMPI into a separate repository
+
+1.0.0
+  * automake fixups
+  * Nonblocking vec<vec> receives + syncs
+  * MPI detection round 2
+  * Add Communicator::max(map)
+  * export TIMPI_RUN in Travis MATRIX_EVAL
+  * Add identical_sizes argument to broadcast
+  * Make sure that we can test OPROF and PROF methods
+  * Add map_sum() specialization for non*fixed types
+  * Add back old map broadcast method
+  * Parallel testing
+  * Add Communicator::broadcast(unordered_map) specialization
+  * Communicator::broadcast(map): Save one communication
+  * Add Communicator::sum(std::unordered_map)
+  * Add support for a timpi*config
+  * Add Communicator::sum(std::map)
+  * Unit test, compilation fixes
+  * Dispatch to allgather_packed_range from allgather for dynamic size types
+  * Remove configure output, temp file
+  * Added .travis.yml CI tests
+
+1.1.0
+  * broadcast now autodispatches to packed_range when necessary
+  * Recursive specializations for Packing<std::pair>
+  * configure bugfix for when environment sets LIBS, CPPFLAGS
+
+1.1.1
+  * autoconf m4 refactoring
+
+1.1.2
+  * Fix for push_parallel_packed_range
+
+1.1.3
+  * Warnings fixes in push_parallel_packed_range
+  * More container support in push_parallel_packed_range
+  * push_parallel_packed_range is no longer timpi_experimental
+  * More unit tests
+  * Better buffer size control in more packed_range functions
+  * Reuse derived type object in push_parallel_vector_data
+  * Have bootstrap check for autoconf submodule initialization
+
+1.2
+  * Directly include header files in parallel_sync.h
+  * Use default constructor/destructor/assignment in Status, DataType
+  * Oversized pull responses bugfix
+  * Clarified Communicator::duplicate() doc comment
+
+1.2.1
+  * Use "-f" when using mv to overwrite our own files
+
+1.3
+  * More dispatches to packed range; displace is_fixed_type idiom
+  * Add nonblocking min, max, and sum
+
+1.4
+  * Explicitly instantiate DataType superclass for tuple
+  * Add -Wcast-align to clang ignore_warnings.h
+  * Ensure methods with SFINAE abling can be used in serial
+  * Support build_standard_type w/ user allocators
+  * Quad-precision support
+
+1.5
+  * Move Packing<string> into sources
+  * Packing<tuple> specialization
+  * StandardType<std::array> support
+  * Packing<array> support
+  * Packing<list, map, unordered_set, etc>
+
+1.6
+  * Generalize push_parallel_[packed_range/vector_data] to allow data moves
+
+1.7
+  * Packing<vector> support
+
+1.7.1
+  * Packing size fixes
+  * Update autoconf submodule
+  * Make DataType destructor virtual to avoid leaks
+
+1.7.2
+  * Implement copy assignment operators for StandardType
+
+1.8.0
+  * Expanded OpFunction capabilities
+  * Use SemiPermanent for derived StandardType classes
+  * Update compiler requirements from C++11 to C++14
+  * Code coverage support
+
+1.8.1
+  * Simplify logic in parallel_sync (fixing oversized pulls)
+
+1.8.2
+  * Fix new bug in parallel_sync (possible vector<vector> corruption)
+
+1.8.3
+  * Prevent gcc spurious warnings in unit test
+  * Add Intel(R) icc 21 support
+  * Avoid overzealous gcc memcpy warnings, do our own checks
+
+1.8.4
+  * Avoid our *own* overzealous checks before memcpy
+  * Dispatch to packed range for gather of dynamic size types
+
+1.8.5
+  * Fixes for packed range specializations
+  * Avoid overwriting user-specified $LIBS
+  * More parallel unit testing
+  * Disable overzealous compiler warning
+
+1.9.0
+  * Packing<string> now uses unsigned int buffer_type too, for better
+    compatibility in nested Packing types
+  * More unit test coverage, including for packed ranges, vector<bool>
+    specializations, allgather<vector<vector>>
+  * Auto-dispatch from parallel push to packed_range
+  * Multiset (multimap, etc) support in set_union()
+  * Break out Packing declarations in their own header
+  * Many assorted compiler warning and bug fixes
+  * Wider compiler support
+  * Better error messages
+  * More assertions
+  * Clarified comments
+  * Autoconf submodule updates
+  * Support for 64-bit counts when MPI-4 is available
+  * Enabled `MPI_THREAD_SERIALIZED` and `MPI_THREAD_MULTIPLE`
+  * More efficient parallel_sync with rvalue references
+  * Non-Blocking eXchange algorithm improvements.
+  * Options to use older parallel synch algorithms in lieu of
+    Non-Blocking eXchange.
+  * Default to FPE-safe flags when building

@@ -1,0 +1,33 @@
+[Tests]
+  [scale]
+    requirement = "The system shall include a random number sampling system"
+    design = 'Sampler.md'
+    issues = '#13906'
+
+    [execute]
+      type = CheckFiles
+      command = 'execute.py'
+      min_parallel = 4
+      max_parallel = 4
+      check_files = 'distribute_none.csv distribute_on.csv distribute_off.csv'
+      recover = false
+      valgrind = NONE
+      detail = "that distributes samples in parallel and"
+      required_python_packages = 'pandas matplotlib'
+      capabilities = 'installation_type=in_tree & !hpc' # see #26480
+      capture_perf_graph = false
+    []
+    [plot]
+      type = CheckFiles
+      command = 'plot.py'
+      check_files = 'memory_total.pdf memory_per_proc.pdf'
+      recover = false
+      valgrind = NONE
+      prereq = scale/execute
+      required_python_packages = 'pandas matplotlib'
+      detail = "demonstrates efficient parallel scaling of memory use."
+      capabilities = 'installation_type=in_tree & !hpc' # see #26480
+      capture_perf_graph = false
+    []
+  []
+[]

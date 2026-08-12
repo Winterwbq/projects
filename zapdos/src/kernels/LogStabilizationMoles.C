@@ -1,0 +1,37 @@
+//* This file is part of Zapdos, an open-source
+//* application for the simulation of plasmas
+//* https://github.com/shannon-lab/zapdos
+//*
+//* Zapdos is powered by the MOOSE Framework
+//* https://www.mooseframework.org
+//*
+//* Licensed under LGPL 2.1, please see LICENSE for details
+//* https://www.gnu.org/licenses/lgpl-2.1.html
+
+#include "LogStabilizationMoles.h"
+
+registerMooseObject("ZapdosApp", LogStabilizationMoles);
+
+InputParameters
+LogStabilizationMoles::validParams()
+{
+  InputParameters params = ADKernel::validParams();
+  params.addRequiredParam<Real>("offset",
+                                "The offset parameter that goes into the exponential function");
+  params.addClassDescription(
+      "Kernel stabilizes solution variable u in places where u → 0; b is the offset value"
+      "specified by the user. A typical value for b is 20.");
+  return params;
+}
+
+LogStabilizationMoles::LogStabilizationMoles(const InputParameters & parameters)
+  : ADKernel(parameters), _offset(getParam<Real>("offset"))
+{
+}
+
+ADReal
+LogStabilizationMoles::computeQpResidual()
+{
+  using std::exp;
+  return -_test[_i][_qp] * exp(-(_offset + _u[_qp]));
+}

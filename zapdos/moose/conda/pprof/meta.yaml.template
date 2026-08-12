@@ -1,0 +1,59 @@
+{% set version = "__VERSIONER_PPROF_VERSION__" %}
+
+package:
+  name: moose-pprof
+  version: {{ version }}
+
+source:
+  git_url: https://github.com/google/pprof.git
+  git_rev: a15ffb7f9dccb95074ad153aef0f1fcbb01e61e3
+  git_depth: 1
+
+build:
+  number: 0
+  string: build_0
+  script: |
+    GO111MODULE=on CGO_ENABLED=0 go build -o "$PREFIX"/bin/pprof .
+
+    mkdir -p "${PREFIX}/etc/conda/activate.d" "${PREFIX}/etc/conda/deactivate.d"
+    cat <<EOF > "${PREFIX}/etc/conda/activate.d/activate_${PKG_NAME}.sh"
+    export GPERF_DIR=${PREFIX}
+    EOF
+    cat <<EOF > "${PREFIX}/etc/conda/deactivate.d/deactivate_${PKG_NAME}.sh"
+    unset GPERF_DIR
+    EOF
+  script_env:
+    - REQUESTS_CA_BUNDLE
+    - SSL_CERT_FILE
+    - CURL_CA_BUNDLE
+    - NODE_EXTRA_CA_CERTS
+requirements:
+  build:
+    - git
+  host:
+    - go
+  run:
+    - gperftools
+    - graphviz
+test:
+  commands:
+    - pprof --help
+
+about:
+  home: https://github.com/google/pprof
+  license: Apache
+  license_family: BSD
+  license_file: LICENSE
+  summary: 'pprof is a tool for visualization and analysis of profiling data.'
+  description: |
+    pprof reads a collection of profiling samples in profile.proto format and
+    generates reports to visualize and help analyze the data. It can generate
+    both text and graphical reports (through the use of the dot visualization
+    package).
+  doc_url: https://github.com/google/pprof
+  dev_url: https://github.com/google/pprof
+
+extra:
+  recipe-maintainers:
+    - cticenhour
+    - loganharbour

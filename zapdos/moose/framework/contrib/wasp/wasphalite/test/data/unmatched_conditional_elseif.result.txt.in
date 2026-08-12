@@ -1,0 +1,2 @@
+***Error : at @CMAKE_CURRENT_SOURCE_DIR@/data/unmatched_conditional_elseif.tmpl:4.1 is an unmatched conditional elseif. The matching #if, #ifdef, #ifndef, or #elseif is missing.
+***Error : Parsing of template @CMAKE_CURRENT_SOURCE_DIR@/data/unmatched_conditional_elseif.tmpl failed!

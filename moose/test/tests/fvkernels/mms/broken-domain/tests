@@ -1,0 +1,10 @@
+[Tests]
+  [broken-domain]
+    type = MMSTest
+    input = 'test.py'
+    test_case = BrokenDomain
+    requirement = 'The system shall display second order convergence when applying weakly enforced matching Dirichlet and flux conditions.'
+    design = 'FVInterfaceKernels/index.md FVBCs/index.md'
+    issues = '#16756'
+  []
+[]

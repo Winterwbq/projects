@@ -1,0 +1,62 @@
+[Tests]
+  [transient]
+    design = "ElementOptimizationSourceFunctionInnerProduct.md NearestReporterCoordinatesFunction.md  ReporterTimePointSource.md"
+    issues = '#21885'
+    requirement = "The system shall be able to perform force-inversion optimization with time-dependent parameters and outputs with"
+    [gradient]
+      type = CSVDiff
+      input = main_gradient.i
+      cli_args = 'forward:Outputs/file_base=grad'
+      csvdiff = grad.csv
+      rel_err = 1e-4
+      heavy = true
+      capabilities = 'method=opt'
+      detail = 'an adjoint solve,'
+    []
+    [auto_adjoint]
+      type = CSVDiff
+      input = main_auto_adjoint.i
+      cli_args = 'forward:Outputs/file_base=grad'
+      csvdiff = grad.csv
+      rel_err = 1e-4
+      heavy = true
+      capabilities = 'method=opt'
+      detail = 'an automatically computed adjoint solve, and '
+    []
+    [nonlinear]
+      type = CSVDiff
+      input = main_auto_adjoint.i
+      cli_args = 'MultiApps/forward/input_files=nonlinear_forward_and_adjoint.i Outputs/file_base=nonlinear_auto_adjoint'
+      csvdiff = nonlinear_auto_adjoint_forward0.csv
+      rel_err = 1e-4
+      heavy = true
+      capabilities = 'method=opt'
+      detail = 'nonlinear material properties.'
+    []
+  []
+
+  [transient_mesh]
+    design = "ParameterMeshOptimization.md ElementOptimizationSourceFunctionInnerProduct.md ParameterMeshFunction.md  ReporterTimePointSource.md"
+    issues = '#22995'
+    requirement = 'The system shall be able to perform force-inversion optimization with time-dependent parameter and outputs with spatial linear interpolation by '
+    [source_mesh]
+      type = CheckFiles
+      input = source_mesh.i
+      cli_args = '--mesh-only'
+      check_files = 'source_mesh_in.e'
+      heavy = true
+      capabilities = 'method=opt'
+      detail = 'creating a source mesh and '
+    []
+    [optimization]
+      type = Exodiff
+      input = main_mesh.i
+      exodiff = main_mesh_out_forward0.e
+      prereq = transient_mesh/source_mesh
+      rel_err = 1e-4
+      heavy = true
+      capabilities = 'method=opt'
+      detail = 'performing the optimization.'
+    []
+  []
+[]

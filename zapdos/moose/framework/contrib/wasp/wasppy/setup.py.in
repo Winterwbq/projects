@@ -1,0 +1,73 @@
+#!/usr/bin/env python
+
+"""
+setup.py file for WASP
+"""
+
+from setuptools import setup, Extension
+import glob, os, platform
+
+def get_extra_link_args():
+    link_args = []
+    if platform.system() != "Windows":
+        link_args.append("-Wl,-rpath,$ORIGIN/lib/.")
+    if platform.system() == "Darwin":
+        link_args.append("-Wl,-headerpad_max_install_names")
+    return link_args
+
+#Source files for the wrapper only
+wasp_sources = glob.glob("wasp_wrap.cxx")
+
+# read the contents of your README file
+from pathlib import Path
+this_directory = Path(__file__).parent
+long_description = (this_directory / "README.md").read_text()
+
+wasp_extra_compile_args = ["/std:c++14"] if os.name == "nt" else ["-std=c++11"]
+
+#TODO some of this can probably go away if we implement interfaces for each
+#package individually. This could make things cleaner and easier to work on
+incl_dirs = "$<TARGET_PROPERTY:waspcore,INCLUDE_DIRECTORIES>".split(";")
+incl_dirs.extend("$<TARGET_PROPERTY:waspson,INCLUDE_DIRECTORIES>".split(";"))
+incl_dirs.extend("$<TARGET_PROPERTY:waspddi,INCLUDE_DIRECTORIES>".split(";"))
+incl_dirs.extend("$<TARGET_PROPERTY:waspeddi,INCLUDE_DIRECTORIES>".split(";"))
+incl_dirs.extend("$<TARGET_PROPERTY:wasphit,INCLUDE_DIRECTORIES>".split(";"))
+incl_dirs.extend("$<TARGET_PROPERTY:waspsiren,INCLUDE_DIRECTORIES>".split(";"))
+incl_dirs.extend("$<TARGET_PROPERTY:wasphive,INCLUDE_DIRECTORIES>".split(";"))
+incl_dirs.extend("$<TARGET_PROPERTY:wasplsp,INCLUDE_DIRECTORIES>".split(";"))
+incl_dirs.extend("$<TARGET_PROPERTY:wasppy,INCLUDE_DIRECTORIES>".split(";"))
+
+#Just links all the included wasp objects into a single library with the wrapper
+#It may be better to eventually include the libraries as proper shared objects,
+#this is just going to be faster
+ext_obj_list = "$<TARGET_OBJECTS:waspcore>".split(";")
+ext_obj_list.extend("$<TARGET_OBJECTS:waspson>".split(";"))
+ext_obj_list.extend("$<TARGET_OBJECTS:waspddi>".split(";"))
+ext_obj_list.extend("$<TARGET_OBJECTS:waspeddi>".split(";"))
+ext_obj_list.extend("$<TARGET_OBJECTS:wasphit>".split(";"))
+ext_obj_list.extend("$<TARGET_OBJECTS:waspsiren>".split(";"))
+ext_obj_list.extend("$<TARGET_OBJECTS:wasphive>".split(";"))
+ext_obj_list.extend("$<TARGET_OBJECTS:waspjson>".split(";"))
+ext_obj_list.extend("$<TARGET_OBJECTS:wasplsp>".split(";"))
+
+wasp_module = Extension('_wasp',
+                           sources=wasp_sources,
+                           include_dirs=incl_dirs,
+                           extra_objects=ext_obj_list,
+                           language="c++",
+                           extra_compile_args = wasp_extra_compile_args,
+                           extra_link_args    = get_extra_link_args(),
+                           )
+
+setup (name = 'ornl-wasp',
+       version = "${${PROJECT_NAME}_VERSION}",
+       description = """${${PROJECT_NAME}_FULL_VERSION}""",
+       author ="Shane Henderson, Robert A. Lefebvre, Brandon R. Langley",
+       author_email="hendersonsc@ornl.gov, lefebvrera@ornl.gov",
+       url="https://code.ornl.gov/neams-workbench/wasp",
+       ext_modules = [wasp_module],
+       py_modules = ["wasp", "Database", "sch2db"],
+       long_description=long_description,
+       long_description_content_type='text/markdown',
+       license_files = "LICENSE"
+       )

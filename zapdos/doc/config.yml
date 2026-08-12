@@ -1,0 +1,61 @@
+Content:
+    - ${ROOT_DIR}/doc/content
+    - ${MOOSE_DIR}/framework/doc/content
+    - ${ROOT_DIR}/crane/doc/content
+    - ${ROOT_DIR}/squirrel/doc/content
+    - python_files:
+        root_dir: ${MOOSE_DIR}/python/doc/content
+        content:
+            - python/peacock.md
+    - moose_files:
+        root_dir: ${MOOSE_DIR}/modules/doc/content
+        content:
+            - getting_started/installation/install_peacock.md
+
+Renderer:
+    type: MooseDocs.base.MaterializeRenderer
+    extra-css:
+        - css/zapdos.css
+Extensions:
+    MooseDocs.extensions.navigation:
+        name: Zapdos
+        repo: https://github.com/shannon-lab/zapdos
+        menu:
+            Getting Started:
+                Installation: getting_started/installation.md
+                Using Zapdos: getting_started/using_zapdos.md
+                Generating Meshes: getting_started/zapdos_meshing.md
+                Tutorial Slides: tutorial/index.md
+            Documentation:
+                Zapdos Input Syntax: syntax/zapdos_only.md
+                Complete Code Syntax: syntax/index.md
+                MOOSE Doxygen: https://mooseframework.inl.gov/docs/doxygen/moose/classes.html
+                libMesh Doxygen: https://mooseframework.inl.gov/docs/doxygen/libmesh/classes.html
+                Zapdos A to Z Index: a-to-z.md
+                CRANE Examples: examples/crane_examples.md
+                Contributing Guidelines: development/contributing.md
+                Code Standards: development/code_standards.md
+                List of Publications: publications.md
+            Help:
+                Zapdos Discussions Forum: https://github.com/shannon-lab/zapdos/discussions
+                Zapdos Developer Information: development/zapdos_developer_info.md
+                MOOSE Discussions Forum: https://github.com/idaholab/moose/discussions
+                MOOSE Homepage: https://mooseframework.inl.gov/
+                MOOSE Developer Information: development/moose_developer_info.md
+            Citing: citing.md
+    MooseDocs.extensions.template:
+        active: true
+    MooseDocs.extensions.appsyntax:
+        executable: ${ROOT_DIR}
+        includes:
+            - include
+        unregister:
+            framework: !include ${MOOSE_DIR}/framework/doc/unregister.yml
+        remove:
+            framework: !include ${MOOSE_DIR}/framework/doc/remove.yml
+    MooseDocs.extensions.common:
+        shortcuts:
+            framework: !include ${MOOSE_DIR}/framework/doc/globals.yml
+            zapdos: !include ${ROOT_DIR}/doc/zapdos_shortcuts.yml
+    MooseDocs.extensions.acronym:
+        acronyms: !include ${MOOSE_DIR}/framework/doc/acronyms.yml

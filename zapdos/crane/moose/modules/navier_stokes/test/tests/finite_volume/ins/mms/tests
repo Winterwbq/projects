@@ -1,0 +1,18 @@
+[Tests]
+  issues = '#15640'
+  design = 'navier_stokes/insfv.md'
+  [rc]
+    type = MMSTest
+    input = test.py
+    test_case = TestRC
+    requirement = 'The system shall be able to solve the incompressible Navier-Stokes equations using a Rhie-Chow interpolation scheme and produce second order convergence for all variables.'
+    min_parallel = 8
+  []
+  [rc-approx]
+    type = MMSTest
+    input = test.py
+    test_case = TestApproximateRC
+    requirement = 'The system shall be able to solve the incompressible Navier-Stokes equations using an approximate Rhie-Chow interpolation scheme and produce second order convergence for all variables.'
+    min_parallel = 8
+  []
+[]

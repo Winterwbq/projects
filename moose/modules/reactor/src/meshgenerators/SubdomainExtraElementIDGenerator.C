@@ -1,0 +1,119 @@
+//* This file is part of the MOOSE framework
+//* https://mooseframework.inl.gov
+//*
+//* All rights reserved, see COPYRIGHT for full restrictions
+//* https://github.com/idaholab/moose/blob/master/COPYRIGHT
+//*
+//* Licensed under LGPL 2.1, please see LICENSE for details
+//* https://www.gnu.org/licenses/lgpl-2.1.html
+
+#include "SubdomainExtraElementIDGenerator.h"
+
+registerMooseObject("ReactorApp", SubdomainExtraElementIDGenerator);
+
+#include "MooseMeshUtils.h"
+
+#include "libmesh/elem.h"
+
+InputParameters
+SubdomainExtraElementIDGenerator::validParams()
+{
+  InputParameters params = MeshGenerator::validParams();
+  params.addRequiredParam<MeshGeneratorName>(
+      "input", "Name of an existing mesh generator to which we assign element IDs");
+  params.addRequiredParam<std::vector<SubdomainName>>("subdomains",
+                                                      "Subdomain names present in the input mesh");
+  params.addRequiredParam<std::vector<std::string>>("extra_element_id_names",
+                                                    "List of user-defined extra element ID names");
+  params.addRequiredParam<std::vector<std::vector<dof_id_type>>>(
+      "extra_element_ids",
+      "User-defined extra element IDs corresponding to 'subdomains' in the same order");
+
+  params.addParam<std::vector<dof_id_type>>(
+      "default_extra_element_ids", "Default extra element IDs for elements not in 'subdomains'");
+
+  params.addClassDescription(
+      "Assign extra element IDs for elements on a mesh based on mesh subdomains.");
+  return params;
+}
+
+SubdomainExtraElementIDGenerator::SubdomainExtraElementIDGenerator(const InputParameters & params)
+  : MeshGenerator(params),
+    _input(getMesh("input")),
+    _subdomain_names(getParam<std::vector<SubdomainName>>("subdomains")),
+    _id_names(getParam<std::vector<std::string>>("extra_element_id_names")),
+    _ids(getParam<std::vector<std::vector<dof_id_type>>>("extra_element_ids")),
+    _defaults(queryParam<std::vector<dof_id_type>>("default_extra_element_ids"))
+{
+  if (_subdomain_names.size() == 0)
+    paramError("subdomains", "Empty subdomain vector provided!");
+  if (_id_names.size() != _ids.size())
+    paramError("extra_element_ids",
+               "Inconsistent vector size for element IDs (must have same size as "
+               "'extra_element_id_names')");
+  for (const auto i : index_range(_ids))
+    if (_subdomain_names.size() != _ids[i].size())
+      paramError("extra_element_ids",
+                 "Inconsistent vector size for element IDs at index " + std::to_string(i) +
+                     " (must have same size as 'subdomains')");
+  if (_defaults && _defaults->size() != _id_names.size())
+    paramError("default_extra_element_ids",
+               "Inconsistent vector size for default element IDs (must have same size as "
+               "'extra_element_id_names')");
+}
+
+std::unique_ptr<MeshBase>
+SubdomainExtraElementIDGenerator::generate()
+{
+  std::unique_ptr<MeshBase> mesh = std::move(_input);
+
+  // We'll be querying the mesh for subdomain ids
+  if (!mesh->preparation().has_cached_elem_data)
+    mesh->cache_elem_data();
+
+  // construct a map from the subdomain ID to the index in 'subdomains'
+  const auto subdomain_ids = MooseMeshUtils::getSubdomainIDs(*mesh, _subdomain_names);
+
+  // check that all subdomains are present
+  for (const auto & name : _subdomain_names)
+    if (!MooseMeshUtils::hasSubdomainName(*mesh, name))
+      paramError("subdomains", "Subdomain " + name + " does not exist in the mesh");
+
+  // check to make sure no duplicated subdomain ids
+  std::set<SubdomainID> unique_subdomain_ids;
+  for (const auto & id : subdomain_ids)
+    if (unique_subdomain_ids.count(id) > 0)
+      paramError("subdomains", "Cannot have subdomain with ID ", id, " listed more than once!");
+    else
+      unique_subdomain_ids.insert(id);
+
+  std::map<SubdomainID, unsigned int> subdomains;
+  for (const auto i : index_range(_subdomain_names))
+    subdomains[subdomain_ids[i]] = i;
+
+  // get indices for all extra element integers
+  std::vector<unsigned int> extra_id_indices;
+  for (const auto & id_name : _id_names)
+  {
+    if (!mesh->has_elem_integer(id_name))
+      extra_id_indices.push_back(mesh->add_elem_integer(id_name));
+    else
+      extra_id_indices.push_back(mesh->get_elem_integer_index(id_name));
+  }
+
+  for (auto & elem : mesh->element_ptr_range())
+  {
+    if (const auto it = subdomains.find(elem->subdomain_id()); it != subdomains.end())
+    {
+      for (const auto i : index_range(_ids))
+        elem->set_extra_integer(extra_id_indices[i], _ids[i][it->second]);
+    }
+    else if (_defaults)
+    {
+      for (const auto i : index_range(_ids))
+        elem->set_extra_integer(extra_id_indices[i], (*_defaults)[i]);
+    }
+  }
+
+  return mesh;
+}

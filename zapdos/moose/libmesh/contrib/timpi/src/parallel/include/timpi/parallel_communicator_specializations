@@ -1,0 +1,585 @@
+// The TIMPI Message-Passing Parallelism Library.
+// Copyright (C) 2002-2025 Benjamin S. Kirk, John W. Peterson, Roy H. Stogner
+
+// This library is free software; you can redistribute it and/or
+// modify it under the terms of the GNU Lesser General Public
+// License as published by the Free Software Foundation; either
+// version 2.1 of the License, or (at your option) any later version.
+
+// This library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+// Lesser General Public License for more details.
+
+// You should have received a copy of the GNU Lesser General Public
+// License along with this library; if not, write to the Free Software
+// Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+
+
+
+// This file is only for use within communicator.h
+#ifdef TIMPI_COMMUNICATOR_H
+
+// Some of these specializations are defined in an MPI-independent way
+
+    bool verify(const std::string & r) const;
+
+    bool verify(const bool & r) const;
+
+    template <typename T, typename A>
+    inline
+    bool semiverify(const std::vector<T,A> * r) const;
+
+    bool semiverify(const std::string * r) const;
+
+    bool semiverify(const bool * r) const;
+
+    void min(bool &r) const;
+
+    template <typename T, typename A>
+    inline
+    void min(std::vector<T,A> &r) const;
+
+    template <typename A>
+    inline
+    void min(std::vector<bool,A> &r) const;
+
+    void minloc(bool &r,
+                unsigned int &min_id) const;
+
+    template <typename A1, typename A2>
+    inline
+    void minloc(std::vector<bool,A1> &r,
+                std::vector<unsigned int,A2> &min_id) const;
+
+    void max(bool &r) const;
+
+    template <typename T, typename A>
+    inline
+    void max(std::vector<T,A> &r) const;
+
+    template <typename A>
+    inline
+    void max(std::vector<bool,A> &r) const;
+
+    template <typename K, typename V, typename C, typename A>
+    inline
+    void max(std::map<K,V,C,A> & data) const;
+
+    template <typename K, typename V, typename H, typename E, typename A>
+    inline
+    void max(std::unordered_map<K,V,H,E,A> & data) const;
+
+    void maxloc(bool &r,
+                unsigned int &max_id) const;
+
+    template <typename A1, typename A2>
+    inline
+    void maxloc(std::vector<bool,A1> &r,
+                std::vector<unsigned int,A2> &max_id) const;
+
+    template <typename T, typename A>
+    inline
+    void sum(std::vector<T,A> &r) const;
+
+    template <typename T>
+    inline
+    void sum(std::complex<T> &r) const;
+
+    template <typename T, typename A>
+    inline
+    void sum(std::vector<std::complex<T>,A> &r) const;
+
+    template <typename K, typename V, typename C, typename A>
+    inline
+    void sum(std::map<K,V,C,A> &r) const;
+
+    template <typename K, typename V, typename H, typename E, typename A>
+    inline
+    void sum(std::unordered_map<K,V,H,E,A> &r) const;
+
+    template <typename T, typename A>
+    inline
+    void product(std::vector<T,A> &r) const;
+
+    template <typename T, typename A>
+    inline
+    void logical_and(std::vector<T,A> &r) const;
+
+    template <typename T, typename A>
+    inline
+    void bitwise_and(std::vector<T,A> &r) const;
+
+    template <typename T, typename A>
+    inline
+    void logical_or(std::vector<T,A> &r) const;
+
+    template <typename T, typename A>
+    inline
+    void bitwise_or(std::vector<T,A> &r) const;
+
+    template <typename T, typename A>
+    inline
+    void logical_xor(std::vector<T,A> &r) const;
+
+    template <typename T, typename A>
+    inline
+    void bitwise_xor(std::vector<T,A> &r) const;
+
+    template <typename T, typename C, typename A>
+    inline
+    void set_union(std::set<T,C,A> &data,
+                   const unsigned int root_id) const;
+
+    template <typename T, typename C, typename A>
+    inline
+    void set_union(std::set<T,C,A> &data) const;
+
+    template <typename T, typename C, typename A>
+    inline
+    void set_union(std::multiset<T,C,A> &data,
+                   const unsigned int root_id) const;
+
+    template <typename T, typename C, typename A>
+    inline
+    void set_union(std::multiset<T,C,A> &data) const;
+
+    template <typename T1, typename T2, typename C, typename A>
+    inline
+    void set_union(std::map<T1,T2,C,A> &data,
+                   const unsigned int root_id) const;
+
+    template <typename T1, typename T2, typename C, typename A>
+    inline
+    void set_union(std::map<T1,T2,C,A> &data) const;
+
+    template <typename T1, typename T2, typename C, typename A>
+    inline
+    void set_union(std::multimap<T1,T2,C,A> &data,
+                   const unsigned int root_id) const;
+
+    template <typename T1, typename T2, typename C, typename A>
+    inline
+    void set_union(std::multimap<T1,T2,C,A> &data) const;
+
+    template <typename K, typename H, typename KE, typename A>
+    inline
+    void set_union(std::unordered_set<K,H,KE,A> &data,
+                   const unsigned int root_id) const;
+
+    template <typename K, typename H, typename KE, typename A>
+    inline
+    void set_union(std::unordered_set<K,H,KE,A> &data) const;
+
+    template <typename K, typename H, typename KE, typename A>
+    inline
+    void set_union(std::unordered_multiset<K,H,KE,A> &data,
+                   const unsigned int root_id) const;
+
+    template <typename K, typename H, typename KE, typename A>
+    inline
+    void set_union(std::unordered_multiset<K,H,KE,A> &data) const;
+
+    template <typename K, typename T, typename H, typename KE, typename A>
+    inline
+    void set_union(std::unordered_map<K,T,H,KE,A> &data,
+                   const unsigned int root_id) const;
+
+    template <typename K, typename T, typename H, typename KE, typename A>
+    inline
+    void set_union(std::unordered_map<K,T,H,KE,A> &data) const;
+
+    template <typename K, typename T, typename H, typename KE, typename A>
+    inline
+    void set_union(std::unordered_multimap<K,T,H,KE,A> &data,
+                   const unsigned int root_id) const;
+
+    template <typename K, typename T, typename H, typename KE, typename A>
+    inline
+    void set_union(std::unordered_multimap<K,T,H,KE,A> &data) const;
+
+    template <typename T, typename A1, typename A2>
+    inline
+    bool possibly_receive (unsigned int & src_processor_id,
+                           std::vector<std::vector<T,A1>,A2> & buf,
+                           Request & req,
+                           const MessageTag & tag) const;
+
+    template <typename T, typename A1, typename A2>
+    inline
+    bool possibly_receive (unsigned int & src_processor_id,
+                           std::vector<std::vector<T,A1>,A2> & buf,
+                           const DataType & type,
+                           Request & req,
+                           const MessageTag & tag) const;
+
+    template <typename T, typename A,
+              typename std::enable_if<std::is_base_of<DataType, StandardType<T>>::value, int>::type = 0>
+    inline
+    void broadcast(std::vector<T,A> &data,
+                   const unsigned int root_id=0,
+                   const bool identical_sizes=false) const;
+
+    template <typename T, typename A,
+              typename std::enable_if<Has_buffer_type<Packing<T>>::value, int>::type = 0>
+    inline
+    void broadcast(std::vector<T,A> &data,
+                   const unsigned int root_id=0,
+                   const bool identical_sizes=false) const;
+
+    template <typename T1, typename T2, typename C, typename A>
+    inline
+    void broadcast(std::map<T1,T2,C,A> &data,
+                   const unsigned int root_id=0,
+                   const bool identical_sizes=false) const;
+
+    template <typename K, typename V, typename H, typename E, typename A>
+    inline
+    void broadcast(std::unordered_map<K,V,H,E,A> &data,
+                   const unsigned int root_id=0,
+                   const bool identical_sizes=false) const;
+
+// We only need to bother with many of these specializations if we're
+// actually in parallel.
+#ifdef TIMPI_HAVE_MPI
+    template<typename T>
+    inline
+    void send (const unsigned int dest_processor_id,
+               const std::basic_string<T> & buf,
+               const MessageTag &tag=no_tag) const;
+
+    template<typename T>
+    inline
+    void send (const unsigned int dest_processor_id,
+               const std::basic_string<T> & buf,
+               Request &req,
+               const MessageTag &tag=no_tag) const;
+
+    template <typename T, typename C, typename A>
+    inline
+    void send (const unsigned int dest_processor_id,
+               const std::set<T,C,A> & buf,
+               const MessageTag &tag=no_tag) const;
+
+    template <typename T, typename C, typename A>
+    inline
+    void send (const unsigned int dest_processor_id,
+               const std::set<T,C,A> & buf,
+               Request &req,
+               const MessageTag &tag=no_tag) const;
+
+    template <typename T, typename C, typename A>
+    inline
+    void send (const unsigned int dest_processor_id,
+               const std::set<T,C,A> & buf,
+               const DataType &type,
+               const MessageTag &tag=no_tag) const;
+
+    template <typename T, typename C, typename A>
+    inline
+    void send (const unsigned int dest_processor_id,
+               const std::set<T,C,A> & buf,
+               const DataType &type,
+               Request &req,
+               const MessageTag &tag=no_tag) const;
+
+    template <typename T, typename A>
+    inline
+    void send (const unsigned int dest_processor_id,
+               const std::vector<T,A> & buf,
+               const MessageTag &tag=no_tag) const;
+
+    template <typename T, typename A,
+              typename std::enable_if<std::is_base_of<DataType, StandardType<T>>::value, int>::type = 0>
+    inline
+    void send (const unsigned int dest_processor_id,
+               const std::vector<T,A> & buf,
+               Request &req,
+               const MessageTag &tag=no_tag) const;
+
+    template <typename T, typename A,
+              typename std::enable_if<Has_buffer_type<Packing<T>>::value, int>::type = 0>
+    inline
+    void send (const unsigned int dest_processor_id,
+               const std::vector<T,A> & buf,
+               Request &req,
+               const MessageTag &tag=no_tag) const;
+
+    template <typename T, typename A>
+    inline
+    void send (const unsigned int dest_processor_id,
+               const std::vector<T,A> & buf,
+               const DataType &type,
+               const MessageTag &tag=no_tag) const;
+
+    template <typename T, typename A,
+              typename std::enable_if<std::is_base_of<DataType, StandardType<T>>::value, int>::type = 0>
+    inline
+    void send (const unsigned int dest_processor_id,
+               const std::vector<T,A> & buf,
+               const DataType &type,
+               Request &req,
+               const MessageTag &tag=no_tag) const;
+
+    template <typename T, typename A,
+              typename std::enable_if<Has_buffer_type<Packing<T>>::value, int>::type = 0>
+    inline
+    void send (const unsigned int dest_processor_id,
+               const std::vector<T,A> & buf,
+               const NotADataType &type,
+               Request &req,
+               const MessageTag &tag=no_tag) const;
+
+    template <typename T, typename A1, typename A2>
+    inline
+    void send (const unsigned int dest_processor_id,
+               const std::vector<std::vector<T,A1>,A2> & buf,
+               const MessageTag &tag=no_tag) const;
+
+    template <typename T, typename A1, typename A2>
+    inline
+    void send (const unsigned int dest_processor_id,
+               const std::vector<std::vector<T,A1>,A2> & buf,
+               Request &req,
+               const MessageTag &tag=no_tag) const;
+
+    template <typename T, typename A1, typename A2>
+    inline
+    void send (const unsigned int dest_processor_id,
+               const std::vector<std::vector<T,A1>,A2> & buf,
+               const DataType &type,
+               const MessageTag &tag=no_tag) const;
+
+    template <typename T, typename A1, typename A2>
+    inline
+    void send (const unsigned int dest_processor_id,
+               const std::vector<std::vector<T,A1>,A2> & buf,
+               const DataType &type,
+               Request &req,
+               const MessageTag &tag=no_tag) const;
+
+    template<typename T>
+    inline
+    Status receive (const unsigned int src_processor_id,
+                    std::basic_string<T> &buf,
+                    const MessageTag &tag=any_tag) const;
+
+    template<typename T>
+    inline
+    void receive (const unsigned int src_processor_id,
+                  std::basic_string<T> &buf,
+                  Request &req,
+                  const MessageTag &tag=any_tag) const;
+
+    template <typename T, typename C, typename A>
+    inline
+    Status receive (const unsigned int src_processor_id,
+                    std::set<T,C,A> &buf,
+                    const MessageTag &tag=any_tag) const;
+
+    template <typename T, typename C, typename A>
+    inline
+    void receive (const unsigned int src_processor_id,
+                  std::set<T,C,A> &buf,
+                  Request &req,
+                  const MessageTag &tag=any_tag) const;
+
+    template <typename T, typename C, typename A>
+    inline
+    Status receive (const unsigned int src_processor_id,
+                    std::set<T,C,A> &buf,
+                    const DataType &type,
+                    const MessageTag &tag=any_tag) const;
+
+    template <typename T, typename C, typename A>
+    inline
+    void receive (const unsigned int src_processor_id,
+                  std::set<T,C,A> &buf,
+                  const DataType &type,
+                  Request &req,
+                  const MessageTag &tag=any_tag) const;
+
+    template <typename T, typename A>
+    inline
+    Status receive (const unsigned int src_processor_id,
+                    std::vector<T,A> &buf,
+                    const MessageTag &tag=any_tag) const;
+
+    template <typename T, typename A>
+    inline
+    void receive (const unsigned int src_processor_id,
+                  std::vector<T,A> &buf,
+                  Request &req,
+                  const MessageTag &tag=any_tag) const;
+
+    template <typename T, typename A>
+    inline
+    Status receive (const unsigned int src_processor_id,
+                    std::vector<T,A> &buf,
+                    const DataType &type,
+                    const MessageTag &tag=any_tag) const;
+
+    template <typename T, typename A,
+              typename std::enable_if<Has_buffer_type<Packing<T>>::value, int>::type>
+    inline
+    Status receive (const unsigned int src_processor_id,
+                    std::vector<T,A> & buf,
+                    const DataType & type,
+                    const MessageTag & tag) const;
+
+    template <typename T, typename A,
+              typename std::enable_if<Has_buffer_type<Packing<T>>::value, int>::type = 0>
+    inline
+    Status receive (const unsigned int src_processor_id,
+                    std::vector<T,A> & buf,
+                    const NotADataType &,
+                    const MessageTag & tag) const;
+
+    template <typename T, typename A>
+    inline
+    void receive (const unsigned int src_processor_id,
+                  std::vector<T,A> &buf,
+                  const DataType &type,
+                  Request &req,
+                  const MessageTag &tag=any_tag) const;
+
+    template <typename T, typename A1, typename A2>
+    inline
+    Status receive (const unsigned int src_processor_id,
+                    std::vector<std::vector<T,A1>,A2> &buf,
+                    const MessageTag &tag=any_tag) const;
+
+    template<typename T, typename A1, typename A2>
+    inline
+    void receive (const unsigned int src_processor_id,
+                  std::vector<std::vector<T,A1>,A2> &buf,
+                  Request &req,
+                  const MessageTag &tag=any_tag) const;
+
+    template <typename T, typename A1, typename A2>
+    inline
+    Status receive (const unsigned int src_processor_id,
+                    std::vector<std::vector<T,A1>,A2> &buf,
+                    const DataType &type,
+                    const MessageTag &tag=any_tag) const;
+
+    template <typename T, typename A1, typename A2>
+    inline
+    void receive (const unsigned int src_processor_id,
+                  std::vector<std::vector<T,A1>,A2> &buf,
+                  const DataType &type,
+                  Request &req,
+                  const MessageTag &tag=any_tag) const;
+
+    inline
+    void broadcast(bool & data,
+                   const unsigned int root_id=0,
+                   const bool identical_sizes=false) const;
+
+    template <typename T>
+    inline
+    void broadcast(std::basic_string<T> &data,
+                   const unsigned int root_id=0,
+                   const bool identical_sizes=false) const;
+
+    template <typename T, typename A>
+    inline
+    void broadcast(std::vector<std::basic_string<T>,A> &data,
+                   const unsigned int root_id=0,
+                   const bool identical_sizes=false) const;
+
+    template <typename T, typename A1, typename A2>
+    inline
+    void broadcast(std::vector<std::vector<T,A1>,A2> &data,
+                   const unsigned int root_id=0,
+                   const bool identical_sizes=false) const;
+
+    template <typename T, typename C, typename A>
+    inline
+    void broadcast(std::set<T,C,A> &data,
+                   const unsigned int root_id=0,
+                   const bool identical_sizes=false) const;
+#endif // TIMPI_HAVE_MPI
+
+
+    // In new overloaded function template entries we have to
+    // re-specify the default arguments
+    template <typename T1, typename T2, typename A1, typename A2>
+    inline
+    void send_receive(const unsigned int dest_processor_id,
+                      const std::vector<T1,A1> & send,
+                      const DataType &type1,
+                      const unsigned int source_processor_id,
+                      std::vector<T2,A2> &recv,
+                      const DataType &type2,
+                      const MessageTag &send_tag = no_tag,
+                      const MessageTag &recv_tag = any_tag) const;
+
+    template <typename T1, typename T2, typename A1, typename A2,
+              typename std::enable_if<std::is_base_of<DataType, StandardType<T1>>::value &&
+                                      std::is_base_of<DataType, StandardType<T2>>::value,
+                                      int>::type = 0>
+    inline
+    void send_receive(const unsigned int dest_processor_id,
+                      const std::vector<T1,A1> & send,
+                      const unsigned int source_processor_id,
+                      std::vector<T2,A2> &recv,
+                      const MessageTag &send_tag = no_tag,
+                      const MessageTag &recv_tag = any_tag) const;
+
+    // We specialize on the T1==T2 case so that we can handle
+    // send_receive-to-self with a plain copy rather than going through
+    // MPI.
+    template <typename T, typename A,
+              typename std::enable_if<std::is_base_of<DataType, StandardType<T>>::value,
+                                      int>::type = 0>
+    inline
+    void send_receive(const unsigned int dest_processor_id,
+                      const std::vector<T,A> & send,
+                      const unsigned int source_processor_id,
+                      std::vector<T,A> &recv,
+                      const MessageTag &send_tag = no_tag,
+                      const MessageTag &recv_tag = any_tag) const;
+
+    template <typename T1, typename T2, typename A1, typename A2,
+              typename std::enable_if<Has_buffer_type<Packing<T1>>::value &&
+                                      Has_buffer_type<Packing<T2>>::value, int>::type = 0>
+    inline
+    void send_receive(const unsigned int dest_processor_id,
+                      const std::vector<T1,A1> & send,
+                      const unsigned int source_processor_id,
+                      std::vector<T2,A2> &recv,
+                      const MessageTag &send_tag = no_tag,
+                      const MessageTag &recv_tag = any_tag) const;
+
+    // We specialize on the T1==T2 case so that the other T1==T2
+    // specialization doesn't override the Packing specialization
+    template <typename T, typename A,
+              typename std::enable_if<Has_buffer_type<Packing<T>>::value, int>::type = 0>
+    inline
+    void send_receive(const unsigned int dest_processor_id,
+                      const std::vector<T,A> & send,
+                      const unsigned int source_processor_id,
+                      std::vector<T,A> &recv,
+                      const MessageTag &send_tag = no_tag,
+                      const MessageTag &recv_tag = any_tag) const;
+
+    template <typename T1, typename T2, typename A1, typename A2, typename A3, typename A4>
+    inline
+    void send_receive(const unsigned int dest_processor_id,
+                      const std::vector<std::vector<T1,A1>,A2> & send,
+                      const unsigned int source_processor_id,
+                      std::vector<std::vector<T2,A3>,A4> &recv,
+                      const MessageTag &send_tag = no_tag,
+                      const MessageTag &recv_tag = any_tag) const;
+
+    template <typename T, typename A1, typename A2>
+    inline
+    void send_receive(const unsigned int dest_processor_id,
+                      const std::vector<std::vector<T,A1>,A2> & send,
+                      const unsigned int source_processor_id,
+                      std::vector<std::vector<T,A1>,A2> &recv,
+                      const MessageTag &send_tag = no_tag,
+                      const MessageTag &recv_tag = any_tag) const;
+
+#endif // TIMPI_COMMUNICATOR_H

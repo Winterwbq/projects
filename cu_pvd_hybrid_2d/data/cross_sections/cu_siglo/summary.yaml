@@ -1,0 +1,67 @@
+source: LXCat SIGLO database
+species: Cu
+raw_bolsig_file: /Users/bingqingwang/projects/cu_pvd_hybrid/data/cross_sections/cu_siglo/cu_siglo_lxcat_bolsig.txt
+clean_bolsig_file: /Users/bingqingwang/projects/cu_pvd_hybrid/data/cross_sections/cu_siglo/cu_siglo_bolsig_clean.txt
+note: These are raw electron-Cu cross sections. Run BOLSIG+ with the clean file to
+  generate electron_moments.txt for Zapdos electron transport.
+processes:
+- id: cu_elastic
+  kind: ELASTIC
+  target: Cu
+  process: E + Cu -> E + Cu, Elastic
+  parameter_ev: 8.63e-06
+  points: 85
+  energy_min_ev: 0.02564
+  energy_max_ev: 794328.0
+  cross_section_max_m2: 4.258e-18
+  table: /Users/bingqingwang/projects/cu_pvd_hybrid/data/cross_sections/cu_siglo/tables/cu_elastic.csv
+- id: cu_excitation_ex2
+  kind: EXCITATION
+  target: Cu -> Cu(EX2)
+  process: E + Cu -> E + Cu(EX2), Excitation
+  parameter_ev: 1.5
+  points: 45
+  energy_min_ev: 1.5
+  energy_max_ev: 794328.0
+  cross_section_max_m2: 2.93757e-20
+  table: /Users/bingqingwang/projects/cu_pvd_hybrid/data/cross_sections/cu_siglo/tables/cu_excitation_ex2.csv
+- id: cu_excitation_ex3
+  kind: EXCITATION
+  target: Cu -> Cu(EX3)
+  process: E + Cu -> E + Cu(EX3), Excitation
+  parameter_ev: 1.5
+  points: 52
+  energy_min_ev: 1.5
+  energy_max_ev: 794328.0
+  cross_section_max_m2: 2.2403e-20
+  table: /Users/bingqingwang/projects/cu_pvd_hybrid/data/cross_sections/cu_siglo/tables/cu_excitation_ex3.csv
+- id: cu_excitation_ex1
+  kind: EXCITATION
+  target: Cu -> Cu( EX1)
+  process: E + Cu -> E + Cu( EX1), Excitation
+  parameter_ev: 3.8
+  points: 52
+  energy_min_ev: 3.8
+  energy_max_ev: 794328.0
+  cross_section_max_m2: 5.11495e-19
+  table: /Users/bingqingwang/projects/cu_pvd_hybrid/data/cross_sections/cu_siglo/tables/cu_excitation_ex1.csv
+- id: cu_excitation_ex4
+  kind: EXCITATION
+  target: Cu -> Cu (EX4)
+  process: E + Cu -> E + Cu (EX4), Excitation
+  parameter_ev: 5.1
+  points: 50
+  energy_min_ev: 5.1
+  energy_max_ev: 794328.0
+  cross_section_max_m2: 1.27317e-22
+  table: /Users/bingqingwang/projects/cu_pvd_hybrid/data/cross_sections/cu_siglo/tables/cu_excitation_ex4.csv
+- id: cu_ionization
+  kind: IONIZATION
+  target: Cu -> Cu^+
+  process: E + Cu -> E + E + Cu+, Ionization
+  parameter_ev: 7.724
+  points: 48
+  energy_min_ev: 7.724
+  energy_max_ev: 1000000.0
+  cross_section_max_m2: 3.20699e-20
+  table: /Users/bingqingwang/projects/cu_pvd_hybrid/data/cross_sections/cu_siglo/tables/cu_ionization.csv

@@ -1,0 +1,183 @@
+//* This file is part of the MOOSE framework
+//* https://mooseframework.inl.gov
+//*
+//* All rights reserved, see COPYRIGHT for full restrictions
+//* https://github.com/idaholab/moose/blob/master/COPYRIGHT
+//*
+//* Licensed under LGPL 2.1, please see LICENSE for details
+//* https://www.gnu.org/licenses/lgpl-2.1.html
+
+#pragma once
+
+#include "MooseObject.h"
+#include "UserObjectInterface.h"
+#include "PostprocessorInterface.h"
+#include "Restartable.h"
+#include "PerfGraphInterface.h"
+#include "FEProblemSolve.h"
+#include "FixedPointSolve.h"
+#include "PicardSolve.h"
+#include "Reporter.h"
+#include "ReporterInterface.h"
+
+// System includes
+#include <string>
+
+class Problem;
+/**
+ * Executioners are objects that do the actual work of solving your problem.
+ */
+class Executioner : public MooseObject,
+                    private Reporter,          // see addAttributeReporter
+                    private ReporterInterface, // see addAttributeReporter
+                    public UserObjectInterface,
+                    public PostprocessorInterface,
+                    public Restartable,
+                    public PerfGraphInterface
+{
+public:
+  /**
+   * Constructor
+   *
+   * @param parameters The parameters object holding data for the class to use.
+   */
+  Executioner(const InputParameters & parameters);
+
+  /// executor-style constructor that skips the fixed point solve object
+  /// allocation.
+  Executioner(const InputParameters & parameters, bool);
+
+  virtual ~Executioner() {}
+
+  static InputParameters validParams();
+
+  /**
+   * Perform initializations during executing actions right before init_problem task
+   */
+  virtual void preProblemInit() {}
+
+  /**
+   * Initialize the executioner
+   */
+  virtual void init() {}
+
+  /**
+   * Pure virtual execute function MUST be overridden by children classes.
+   * This is where the Executioner actually does it's work.
+   */
+  virtual void execute() = 0;
+
+  /**
+   * Override this for actions that should take place before execution
+   */
+  virtual void preExecute() {}
+
+  /**
+   * Override this for actions that should take place after execution
+   */
+  virtual void postExecute() {}
+
+  /**
+   * Override this for actions that should take place before execution, called by FixedPointSolve
+   */
+  virtual void preSolve() {}
+
+  /**
+   * Override this for actions that should take place after execution, called by FixedPointSolve
+   */
+  virtual void postSolve() {}
+
+  /**
+   * Deprecated:
+   * Return a reference to this Executioner's Problem instance
+   */
+  virtual Problem & problem();
+
+  /**
+   * Return a reference to this Executioner's FEProblemBase instance
+   */
+  FEProblemBase & feProblem();
+
+  /** The name of the TimeStepper
+   * This is an empty string for non-Transient executioners
+   * @return A string of giving the TimeStepper name
+   */
+  virtual std::string getTimeStepperName() const { return std::string(); }
+
+  /** The name of the TimeIntegrator
+   * This is an empty string for non-Transient executioners
+   * @return A string of giving the TimeIntegrator name
+   */
+  virtual std::vector<std::string> getTimeIntegratorNames() const { return {}; }
+
+  /**
+   * Can be used by subclasses to call parentOutputPositionChanged()
+   * on the underlying FEProblemBase.
+   */
+  virtual void parentOutputPositionChanged() {}
+
+  /**
+   * Whether or not the last solve converged.
+   */
+  virtual bool lastSolveConverged() const = 0;
+
+  FixedPointSolve & fixedPointSolve() { return *_fixed_point_solve; }
+
+  /**
+   * Get the verbose output flag
+   * @return The verbose output flag
+   */
+  const bool & verbose() const { return _verbose; }
+
+  /**
+   * Return supported iteration methods that can work with MultiApps on timestep_begin and
+   * timestep_end
+   */
+  static MooseEnum iterationMethods() { return MooseEnum("picard secant steffensen", "picard"); }
+
+  /**
+   * Register a solve object to the executioner so that we can check whether a solve object
+   * has been built by the executioner
+   */
+  void registerSolveObject(const SolveObject & so) { _solve_objects.push_back(&so); }
+
+  /**
+   * Whether a solve object in a certain type has been built by the executioner
+   */
+  template <class T>
+  bool hasSolveObject() const
+  {
+    for (const auto & so : _solve_objects)
+    {
+      const T * tso = dynamic_cast<const T *>(so);
+      if (tso)
+        return true;
+    }
+    return false;
+  }
+
+protected:
+  /**
+   * Adds a postprocessor that the executioner can directly assign values to
+   * @param name The name of the postprocessor to create
+   * @param initial_value The initial value of the postprocessor value
+   * @return Reference to the postprocessor data that to be used by this executioner
+   */
+  virtual PostprocessorValue & addAttributeReporter(const std::string & name,
+                                                    Real initial_value = 0);
+
+  FEProblemBase & _fe_problem;
+
+  MooseEnum _iteration_method;
+  std::unique_ptr<FixedPointSolve> _fixed_point_solve;
+
+  // Restart
+  std::string _restart_file_base;
+
+  /// True if printing out additional information
+  const bool & _verbose;
+
+private:
+  /// All solve objects built by this executioner
+  std::vector<const SolveObject *> _solve_objects;
+};

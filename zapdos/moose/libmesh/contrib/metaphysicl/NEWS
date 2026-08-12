@@ -1,0 +1,142 @@
+1.4.0 -> 2.0.0
+  * Improve nvc++ compatibility
+  * Improved parallel testing
+  * Enable and address paranoid warnings
+  * Eliminate code deprecated in c++17
+  * Update autotools
+  * Avoid and test for spurious floating point exceptions
+  * Remove pessimizing std::move
+  * Update autoconf submodule
+  * vexcl.m4 fix when only part of boost is installed
+  * Allow dual numbers to execute on device
+    * Focuses on the SemiDynamicSparseNumberArrayGeneric derivative container
+    * Public do_derivatives static member deprecated
+    * Float and long double overloads removed
+    * Introduction of generic DynamicArrayWrapper
+      * Template using declarations for wrapping std::array and KokkosArray
+      * N template parameter changed from a typename to size_t
+      * typename N parameter moved to SemiDynamicSparseNumberArrayGeneric since
+        base template DynamicSparseNumberBase requires parameter pack of typename
+
+1.3.3 -> 1.4.0
+  * Throw exception in opt mode if DynamicStdArrayWrapper size exceeded
+  * Add tolerance argument to DynamicSparseNumberBase::sparsity_trim()
+  * ReplaceAlgebraicType metafunction
+  * ValueType overloads for std::array, std::vector
+  * MPI reduce support for DualNumber, SemiDynamicNumberArray, NumberArray
+  * More flexible assertion macros
+  * std::isinf overloads for DualNumber, DualExpression
+  * Unit testing with FP exceptions enabled
+  * Improved binary DualNumber operation speed + FPE safety
+  * Assorted bug fixes, compiler workarounds, unit tests, unit test fixes
+
+1.3.2 -> 1.3.3
+  * TIMPI configuration bugfix
+
+1.3.1 -> 1.3.2
+  * Unit test options for disabling long double tests
+  * Use SemiPermanent for derived StandardTypes
+  * Fix assertions in wrapper constructor/assignment
+  * --with-timpi-method configure option
+
+1.3.0 -> 1.3.1
+  * Build system fixes for "make check/distcheck" in some configurations
+
+1.2.2 -> 1.3.0
+  * StandardType specialization for SemiDynamicSparseNumberArray
+  * StandardType specialization for DynamicStdArrayWrapper
+  * Add template boolean parameter for StandardType and Packing of DualNumber
+
+1.2.1 -> 1.2.2
+  * Restrict implicit conversions (fix for Eigen compatibility)
+
+1.2.0 -> 1.2.1
+  * New configure options for selecting C++ standard
+
+1.1.0 -> 1.2.0
+  * C++17 standard library compatibility
+
+1.0.2 -> 1.1.0
+  * Add RawType<vector<DualNumber>> and RawType<vector<vector<DualNumber>>>
+  * Add IsRawSame helper
+  * Use new TIMPI NotADataType class
+  * Use "-f" when using mv to overwrite our own files
+
+1.0.0 -> 1.0.2
+  * Autoconf submodule refactoring
+
+0.6.0 -> 1.0.0
+  * MetaPhysicL may now be optionally configured with TIMPI
+  * Add StandardType and Packing specializations for parallel communication of
+    DualNumber and DynamicSparseNumberArray data
+  * DualNumbers can now have derivative initialization/calculation turned off.
+    Adds a boolean template argument to DualNumber
+
+0.5.2 -> 0.6.0
+  * Implement SemiDynamicSparseNumberArray which leverages sparse functionality
+    like DynamicSparseNumberArray/Vector but which uses static std::array
+    background storage
+  * Optimization for DualNumber product and quotient rules
+
+0.5.1 -> 0.5.2
+  * Defined CompareTypes between T and std::complex<T>
+
+0.5.0 -> 0.5.1
+  * Optimizations for multiply and derivative operations of DualNumbers using
+    statically sized derivative storage types
+  * Added robustness for pow(Dual*)
+
+0.4.0 -> 0.5.0
+  * Create metaphysicl_dbg_var to eliminate compiler warnings
+  * Add unsigned long / long long support
+  * Add long int type support
+  * Fix Perl GetOptions unknown option error for mingw64
+  * Fix warning with clang 7.x: Prevent copying when returning by name; use std::move
+
+0.3.3 -> 0.4.0
+  * Fix norm derivative for DualNumber
+  * Add some assignment overloads for DualNumber
+  * Don't default initialize NumberArray data
+  * Test calculations of DualNumber<T, NumberArray<N,T>>
+  * Add support for many C++11 math functions
+
+0.3.2 -> 0.3.3
+  * Begin incrementing library versioning properly
+  * More declarations properly added to _decl headers
+  * Fixes for numerous compiler warnings
+
+0.3.1 -> 0.3.2
+  * Support for std::complex functions for some classes
+  * Bugfix in DynamicSparseNumber*::operator[]
+  * More unit tests
+
+0.3.0 -> 0.3.1
+  * Better C++11/C++14 manual+auto configuration
+  * const-compatible DualNumberSurrogate copy constructor/assignment
+  * DualNumber construction/assignment from surrogates
+  * NotADuckDualNumber derivatives fixes
+
+0.2.0 -> 0.3.0
+  * Build system fixes
+  * Compilation fix on newer compilers
+  * DualNumberSurrogate, DualNumber-wrapping-array capability
+
+0.1.0 -> 0.2.0
+  * Build system fixes
+  * New unit test
+  * Many more assorted bug fixes
+
+0.0.0 -> 0.1.0
+  * Compile-time sparse array/vector types
+  * Run-time sparse array/vector types
+  * DualExpression for performance with expression templates
+  * NamedIndexArray for physics kernel experimentation
+  * VexCL integration
+  * More logical operators
+  * Many more unit tests
+  * Many assorted bug fixes
+
+0.0.0
+  * DualNumber recursive automatic differentiation
+  * NumberVector, NumberArray operator overloading
+  * Recursive gradients, tensors, etc.

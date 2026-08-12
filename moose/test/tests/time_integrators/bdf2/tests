@@ -1,0 +1,40 @@
+[Tests]
+  design = 'BDF2.md'
+  issues = '#1953'
+
+  [group]
+    requirement = "The system shall support the second-order backward difference method for time integration"
+    [./test]
+      type = 'Exodiff'
+      input = 'bdf2.i'
+      exodiff = 'bdf2_out.e'
+
+      detail = "with and"
+    [../]
+
+    [./adapt]
+      type = 'Exodiff'
+      input = 'bdf2_adapt.i'
+      exodiff = 'bdf2_adapt_out.e-s005'
+      group = 'adaptive'
+
+      detail = "without mesh adaptivity."
+    [../]
+  []
+
+  [fv]
+    requirement = 'The system shall be able to show second order temporal accuracy using the BDF2 time integration scheme with a finite volume'
+    [nonlinear]
+      detail = 'nonlinear implementation, and'
+      type = MMSTest
+      input = test.py
+      test_case = TestNonlinearFV
+    []
+    [linear]
+      detail = 'linear implementation.'
+      type = MMSTest
+      input = test.py
+      test_case = TestLinearFV
+    []
+  []
+[]

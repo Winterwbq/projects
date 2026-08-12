@@ -1,0 +1,50 @@
+[Tests]
+  [target_flux_source_syntax]
+    type = RunApp
+    input = target_flux_source.i
+    check_input = true
+    requirement = "The SEE source shall be able to use the actual target ion flux as its driver."
+  []
+  [target_flux_source_neutral_limiter]
+    type = CSVDiff
+    input = target_flux_source_neutral_limiter.i
+    csvdiff = target_flux_source_neutral_limiter_out.csv
+    requirement = "The SEE source shall report the neutral availability limiter used to suppress source runaway."
+  []
+  [target_flux_secondary_bc_model]
+    type = CSVDiff
+    input = target_flux_secondary_bc.i
+    csvdiff = target_flux_secondary_bc_out.csv
+    requirement = "The target ion-flux diagnostic shall be able to use the same ion-impact flux model as the secondary-electron boundary condition."
+  []
+  [target_flux_conservative_deposition]
+    type = CSVDiff
+    input = target_flux_conservative_deposition.i
+    csvdiff = target_flux_conservative_deposition_out.csv
+    rel_err = 1e-11
+    abs_zero = 1e-12
+    requirement = "The discretely integrated SEE volume-emission rate shall equal the current-normalized target-boundary emission rate."
+  []
+  [prescribed_target_flux_rate]
+    type = CSVDiff
+    input = target_flux_prescribed_source.i
+    csvdiff = target_flux_prescribed_source_out.csv
+    rel_err = 1e-12
+    abs_zero = 1e-14
+    requirement = "The SEE source shall scale with a prescribed target-ion-flux function independently of a computed target boundary flux."
+  []
+  [prescribed_target_flux_kernel_syntax]
+    type = RunApp
+    input = target_flux_prescribed_kernel.i
+    check_input = true
+    requirement = "The SEE kernel shall accept a prescribed target-ion-flux function without requiring a target-flux user object."
+  []
+  [lagged_target_flux_response]
+    type = CSVDiff
+    input = target_flux_response.i
+    csvdiff = target_flux_response_out.csv
+    rel_err = 1e-11
+    abs_zero = 1e-14
+    requirement = "The SEE source shall use a timestep-lagged raw Bohm target flux with an exact first-order response and a downward-only discharge-power cap."
+  []
+[]

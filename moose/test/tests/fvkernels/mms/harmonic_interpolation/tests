@@ -1,0 +1,34 @@
+[Tests]
+  design = 'FVDiffusion.md'
+  issues = '#21923'
+  [average]
+    requirement = 'The system shall display first order convergence, '
+    [tris]
+      type = MMSTest
+      input = 'test.py'
+      test_case = TestAverageTriangles
+      detail = 'when using a simple arithmetic average to determine the face values of discontinuous diffusion coefficients on a regular tri mesh.'
+    []
+    [quads]
+      type = MMSTest
+      input = 'test.py'
+      test_case = TestAverageQuads
+      detail = 'when using a simple arithmetic average to determine the face values of discontinuous diffusion coefficients on a quad mesh.'
+    []
+  []
+  [harmonic]
+    requirement = 'The system shall display '
+    [tris]
+      type = MMSTest
+      input = 'test.py'
+      test_case = TestHarmonicTriangles
+      detail = 'close to second order convergence, when using a simple harmonic average to determine the face values of discontinuous diffusion coefficients on a regular tri mesh.'
+    []
+    [quads]
+      type = MMSTest
+      input = 'test.py'
+      test_case = TestHarmonicQuads
+      detail = 'second order convergence, when using a simple harmonic average to determine the face values of discontinuous diffusion coefficients on a quad mesh.'
+    []
+  []
+[]

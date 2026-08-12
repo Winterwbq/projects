@@ -1,0 +1,85 @@
+//* This file is part of the MOOSE framework
+//* https://mooseframework.inl.gov
+//*
+//* All rights reserved, see COPYRIGHT for full restrictions
+//* https://github.com/idaholab/moose/blob/master/COPYRIGHT
+//*
+//* Licensed under LGPL 2.1, please see LICENSE for details
+//* https://www.gnu.org/licenses/lgpl-2.1.html
+
+#include "MooseParsedVectorFunction.h"
+#include "MooseParsedFunctionWrapper.h"
+
+registerMooseObjectAliased("MooseApp", MooseParsedVectorFunction, "ParsedVectorFunction");
+
+InputParameters
+MooseParsedVectorFunction::validParams()
+{
+  InputParameters params = Function::validParams();
+  params += MooseParsedFunctionBase::validParams();
+  params.addClassDescription(
+      "Returns a vector function based on string descriptions for each component.");
+  params.addParam<std::string>("expression_x", "0", "x-component of function.");
+  params.addParam<std::string>("expression_y", "0", "y-component of function.");
+  params.addParam<std::string>("expression_z", "0", "z-component of function.");
+  params.addParam<std::string>("curl_x", "0", "x-component of curl of function.");
+  params.addParam<std::string>("curl_y", "0", "y-component of curl of function.");
+  params.addParam<std::string>("curl_z", "0", "z-component of curl of function.");
+  params.addParam<std::string>("div", "0", "divergence of function.");
+  return params;
+}
+
+MooseParsedVectorFunction::MooseParsedVectorFunction(const InputParameters & parameters)
+  : Function(parameters),
+    MooseParsedFunctionBase(parameters),
+    _vector_value(verifyFunction(std::string("{") + getParam<std::string>("expression_x") + "}{" +
+                                 getParam<std::string>("expression_y") + "}{" +
+                                 getParam<std::string>("expression_z") + "}")),
+    _curl_value(verifyFunction(std::string("{") + getParam<std::string>("curl_x") + "}{" +
+                               getParam<std::string>("curl_y") + "}{" +
+                               getParam<std::string>("curl_z") + "}")),
+    _div_value(verifyFunction(getParam<std::string>("div")))
+{
+}
+
+RealVectorValue
+MooseParsedVectorFunction::vectorValue(Real t, const Point & p) const
+{
+  return _function_ptr->evaluate<RealVectorValue>(t, p);
+}
+
+RealVectorValue
+MooseParsedVectorFunction::curl(Real t, const Point & p) const
+{
+  return _curl_function_ptr->evaluate<RealVectorValue>(t, p);
+}
+
+Real
+MooseParsedVectorFunction::div(Real t, const Point & p) const
+{
+  return _div_function_ptr->evaluate<Real>(t, p);
+}
+
+RealGradient
+MooseParsedVectorFunction::gradient(Real /*t*/, const Point & /*p*/) const
+{
+  mooseError("The gradient method is not defined in MooseParsedVectorFunction");
+}
+
+void
+MooseParsedVectorFunction::initialSetup()
+{
+  THREAD_ID tid = isParamValid("_tid") ? getParam<THREAD_ID>("_tid") : 0;
+
+  if (!_function_ptr)
+    _function_ptr = std::make_unique<MooseParsedFunctionWrapper>(
+        _pfb_feproblem, _vector_value, _vars, _vals, tid);
+
+  if (!_curl_function_ptr)
+    _curl_function_ptr = std::make_unique<MooseParsedFunctionWrapper>(
+        _pfb_feproblem, _curl_value, _vars, _vals, tid);
+
+  if (!_div_function_ptr)
+    _div_function_ptr =
+        std::make_unique<MooseParsedFunctionWrapper>(_pfb_feproblem, _div_value, _vars, _vals, tid);
+}

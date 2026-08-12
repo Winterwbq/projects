@@ -1,0 +1,149 @@
+#!/usr/bin/env python3
+#
+# pre-push hook to check that commits are signed before pushing
+#
+
+import os
+import sys
+import subprocess
+
+
+# Functions
+
+
+def s(x):
+  try:
+    return x.decode("utf-8")
+  except AttributeError:
+    return x
+
+
+def getCmndOutput(cmnd, allowToFail=False):
+  result = subprocess.run(cmnd, stdout=subprocess.PIPE,
+    stderr = subprocess.STDOUT)
+  output = s(result.stdout)
+  if result.returncode != 0 and not allowToFail:
+    print("Error, the command "+str(cmnd)+" returned error code "+str(result.returncode)\
+      +" with the stderr message:\n\n"+str(result.stderr)\
+      +"\n\nReturned output was:\n\n"+output)
+    exit(1)
+  return output
+
+
+def getCmndLineArgsFrmSysArgv(sysArgv):
+  cmndLineArgs = sysArgv[1:]
+  remoteName = cmndLineArgs[0]
+  remoteURL = cmndLineArgs[1]
+  #print("remoteName = "+str(remoteName))
+  #print("remoteURL = "+str(remoteURL))
+  return (remoteName, remoteURL)
+
+
+def getVersionInfoFromStdinStr(stdinStr):
+  if stdinStr:
+    stdinArray = stdinStr.split(" ")
+    #print("stdinArray = "+str(stdinArray))
+    localRef = stdinArray[0]
+    localObjectName = stdinArray[1]
+    remoteRef = stdinArray[2]
+    remoteObjectName = stdinArray[3]
+    #print("localRef = "+localRef)
+    #print("localObjectName = "+localObjectName)
+    #print("remoteRef = "+remoteRef)
+    #print("remoteObjectName = "+remoteObjectName)
+    localCommit = localObjectName
+    remoteCommit = remoteObjectName
+  else:
+    localCommit = None
+    remoteCommit = None
+  #
+  return (localCommit, remoteCommit)
+
+
+def getUpstreamRemoteBranch():
+  upstreamRemoteBranchPropName = "user.upstreamremotebranch"
+  upstreamRemoteBranch = getCmndOutput(["git", "config", "--get",
+    upstreamRemoteBranchPropName], allowToFail=True).strip()
+  if not upstreamRemoteBranch:
+    print("Error: The git repo config var '"+upstreamRemoteBranchPropName+"'"\
+      +" is not set!\n\n"\
+      +"Please set it in your local repo with:\n\n"\
+      +"  git config "+upstreamRemoteBranchPropName+" <remoteName>/<branchName>")
+    exit(1)
+  return upstreamRemoteBranch
+
+
+def getAdjustedReferenceVersion(remoteCommit):
+  if remoteCommit == "0000000000000000000000000000000000000000":
+    #print("Adjusted remote ref for remote commit: "+remoteCommit)
+    return getUpstreamRemoteBranch()
+  return remoteCommit
+
+
+def getVersionRangeInfoFromStdinStr(stdinStr):
+  (localCommit, remoteCommit) = getVersionInfoFromStdinStr(stdinStr)
+  remoteReferenceVersion = getAdjustedReferenceVersion(remoteCommit)
+  return (localCommit, remoteReferenceVersion)
+
+
+def getCommitsListToBeTested(localCommit, remoteReferenceVersion):
+  if remoteReferenceVersion:
+    gitCommitsStr = getCmndOutput(["git", "rev-list",
+      remoteReferenceVersion+".."+localCommit]).strip()
+    #print("gitCommits = '"+gitCommits+"'")
+  else:
+    gitCommitsStr = None
+  # Return an array of the commits
+  if gitCommitsStr:
+    return str(gitCommitsStr).split("\n")
+  return []
+
+
+def checkCommitOkay(commit):
+  commitMsg = getCmndOutput(["git", "log", "-1", "--pretty=format:\"%B\"", commit])
+  if not "Signed-off-by:" in commitMsg:
+    print("Error: Commit "+commit+" does not have a Signed-off-by line!")
+    return False
+  return True
+
+
+def checkCommitsAreOkay(gitCommitsList, upstreamRemoteBranch):
+  foundBadCommit = False
+  if gitCommitsList:
+    for commit in gitCommitsList:
+      if not checkCommitOkay(commit):
+        foundBadCommit = True
+  if foundBadCommit:
+    print("\nNOTE: These commits can be signed off by running:\n\n"\
+      "  git rebase --signoff "+upstreamRemoteBranch+"\n")
+    return False
+  return True
+
+
+def abortIfOnlyDoingTesting():
+  prePushHookTesting = os.environ.get("PRE_PUSH_HOOK_TESTING", "0")
+  if prePushHookTesting == "1":
+    print("Aborting pre-push because PRE_PUSH_HOOK_TESTING="+str(prePushHookTesting))
+    exit(1)
+
+
+#
+# Main
+#
+
+# Get the branch name at the top in case it is not set!
+upstreamRemoteBranch = getUpstreamRemoteBranch()
+
+(remoteName, remoteURL) = getCmndLineArgsFrmSysArgv(sys.argv)
+
+stdinStr = sys.stdin.read().strip()
+(localCommit, remoteReferenceVersion) = getVersionRangeInfoFromStdinStr(stdinStr)
+gitCommitsList = getCommitsListToBeTested(localCommit, remoteReferenceVersion)
+
+allCommitsAreOkay = checkCommitsAreOkay(gitCommitsList, upstreamRemoteBranch)
+
+abortIfOnlyDoingTesting()
+
+# Final return pass/fail
+if not allCommitsAreOkay: exit(1)
+exit(0)

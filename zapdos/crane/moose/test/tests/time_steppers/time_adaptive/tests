@@ -1,0 +1,11 @@
+[Tests]
+  [test]
+    type = 'CSVDiff'
+    input = 'time-adaptive.i'
+    csvdiff = 'time-adaptive_out.csv'
+
+    design = 'Executioner/TimeStepper/index.md'
+    issues = '#2288 #18863'
+    requirement = 'The system shall support the ability to select time step sizes based upon the ratio of the real (wall) time of the solve and the size of the time step.'
+  []
+[]

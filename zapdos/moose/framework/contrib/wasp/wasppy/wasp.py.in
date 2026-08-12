@@ -1,0 +1,540 @@
+# TODO collect this into a less formidable import
+import sys
+from wasp import (
+        NodeView, VectorNodeView, VectorString,
+        DefaultSONInterpreter,
+        DefaultDDInterpreter,
+        DefaultEDDInterpreter,
+        DefaultHITInterpreter,
+        SONNodeView,
+        HITNodeView,
+        DDINodeView,
+        EDDINodeView,
+        HIVE, Definition, Diagnostic,
+        string, ostringstream, istringstream
+        )
+import math
+from enum import Enum
+
+# Enumeration of currently supported input syntax
+class Syntax(Enum):
+    SON    = 0 # Standard Object Notation
+    HIT    = 1 # Hierarchical Input Text 
+    DDI    = 2 # Definition Driven Input
+    EDDI   = 3 # Extra Definition Drive Input
+    JSON   = 4 # JavaScript Object Notation
+    HALITE = 5 # HierarchicAL Input TemplatE Engine 
+
+class WaspNodeIterator():
+    '''Abstract base class for document node iterators.'''
+    def __init__(self,docnode):
+        self._docnode: WaspNode = docnode
+        self._it = self._docnode._nodeview.begin()
+
+    def __next__(self) -> "WaspNode":
+        '''Increments the iterator.'''
+        if self._it:
+            node = WaspNode(self._it.get())
+            self._it.next()
+            return node
+        else:
+            raise StopIteration
+
+class VectorWaspNode(list):
+    '''Wrapper for a vector of WASP nodes which allows iterating data'''
+    def __init__(self, iterable):
+        '''Create a wrapper list from a list of *NodeView,schemaView tuples'''
+        super().__init__(WaspNode(view[0],view[1]) for view in iterable)
+
+    def __getattr__(self, name):
+        '''Obtain the named or indexed component from this vector'''
+        result = VectorWaspNode([])
+        for waspNode in self:
+            namedChildren = waspNode.child_by_name(name)
+
+            # Either a VectorWaspNode 
+            assert isinstance(namedChildren, VectorWaspNode) \
+                    or isinstance(namedChildren, WaspNode)
+
+            if isinstance(namedChildren, VectorWaspNode):
+                result.extend(namedChildren)
+            else:
+                result.append(namedChildren)
+        if len(result) > 0:
+            return result
+        return None
+
+    def __getitem__(self,i:"int|str") -> "WaspNode":
+        '''
+        Specialization of "[]" to allow accessing child nodes by node index.        
+        Workaround for not being able to use Python keywords in the dot operator (__getattr__).
+        Preserve the index-based method and also allow slicing notation.
+        '''
+        if isinstance(i, str):
+            return self.__getattr__(i)
+        elif isinstance(i, int):
+            return super().__getitem__(i)
+        elif isinstance(i, slice):
+            return [self[j] for j in range(*i.indices(len(self)))]
+        else:
+            raise AttributeError(f"The provided input {i} is not a str or int")
+
+class WaspNode():
+    '''Abstract base class for other DocNodes.'''
+    def __init__(self, nodeview, schemanodeview = None):
+        self._schemanode:"NodeView|None" = schemanodeview
+        self._nodeview:NodeView = nodeview
+
+    def __bool__(self):
+        return self._nodeview is not None and not self._nodeview.is_null()
+
+    def source(self):
+        '''Obtain the source of this node. This is either a stream name or a file path.'''
+        if self._nodeview:
+            return str(self._nodeview.node_pool().stream_name())
+        return ""
+
+    def path(self) -> "str":
+        '''Returns the path (/root/parent/node) of the node.'''
+        return self._nodeview.path()
+
+    def isDecorative(self):
+        if self._nodeview:
+            return self._nodeview.is_decorative()
+        return False
+
+    def isLeaf(self):
+        return self._nodeview.is_leaf()
+
+
+    def __repr__(self) -> "str":
+        '''Returns the name of the node.'''
+        if self:
+            return self.name()
+        return ""
+
+    def line(self) -> "int":
+        '''Returns the line on which this node exists in the input'''
+        return self._nodeview.line()
+    
+    def last_line(self) -> "int":
+        '''Returns the last line on which this node exists in the input'''
+        return self._nodeview.last_line()
+
+    def column(self) -> "int":
+        '''Returns the column on which this node exists in the input'''
+        return self._nodeview.column()
+
+    def last_column(self) -> "int":
+        '''Returns the last column on which this node exists in the input'''
+        return self._nodeview.last_column()
+    
+    def info(self) -> "str":
+        '''Returns the information for this node.'''
+        return self.name() + " on line " + str(self.line()) + " column " + str(self.column())
+
+    def __len__(self) -> "int":
+        '''Returns the number of the child nodes within this node.'''
+        return self.child_count()
+
+    def child_count(self) -> "int":
+        '''Returns the number of the child nodes within this node.'''
+        return self._nodeview.child_count()
+
+    def data(self) -> "str":
+        '''
+        Obtains the data represented by this node.
+        Concrete value is determined by wasp.
+        '''
+        return self._nodeview.data()
+
+    def set_data(self, str):
+        '''
+        Set the data (character buffer) for this node
+        This is only legal for leaf/terminal nodes 
+        '''
+        if self and self.isLeaf():
+            self._nodeview.set_data(str)
+        else: 
+            raise NotImplementedError("data cannot be set on non-terminal nodes!")
+        
+    def name(self) -> "str":
+        '''Returns the name of the node.'''
+        return self._nodeview.name()
+
+    def type(self) -> "int":
+        '''Returns the enumerated type of the node.'''
+        return self._nodeview.type()
+
+    def __float__(self) -> "float":
+        '''
+        Returns the floating point representation of the node, 0.0 if it cannot
+        be expressed naturally as a float.
+        '''
+        # Allows users to forgo obtaining the value node themselves.
+        values = self._nodeview.child_by_name(string("value"))
+        if len(values) > 0:
+            return values[0].to_double()
+        # Permits users to obtain the value and/or attempt to on any
+        # node permitted by wasp.
+        else:
+            return self._nodeview.to_double()
+
+    def __str__(self) -> "str":
+        ''' Returns the string representation of the node. '''
+        # Allows users to forgo obtaining the value node themselves.
+        values = self._nodeview.child_by_name(string("value"))
+        if len(values) > 0:
+            return values[0].to_string()
+        # Permits users to obtain the value and/or attempt to on any
+        # node permitted by wasp.
+        else:
+            return self._nodeview.to_string()
+
+    def __int__(self) -> "int":
+        '''
+        Returns the integer representation of the node, 0 if it cannot be
+        expressed naturally as an int.
+        '''
+        # Allows users to forgo obtaining the value node themselves.
+        values = self._nodeview.child_by_name(string("value"))
+        if len(values) > 0:
+            return values[0].to_int()
+        # Permits users to obtain the value and/or attempt to on any
+        # node permitted by wasp.
+        else:
+            return self._nodeview.to_int()
+
+    def __iter__(self) -> "WaspNodeIterator":
+        '''Returns iterator to provide sequential access to child nodes'''
+        return WaspNodeIterator(self)
+
+    def __getattr__(self,name:str) -> "WaspNode":
+        '''
+        Specialization of the dot "." operator to allow accessing child nodes by name as as an class attribute.
+        '''
+        return self.child_by_name(name)
+
+    def child_by_name(self,name:str) -> "WaspNode":
+        '''Returns the child node by the given name or the list of children by the given name.'''
+        # If the node doesn't exists this will be empty
+        requested = self._nodeview.child_by_name(string(name))
+        if not self._schemanode:
+            # If retrieved a vector of data, return node-aware iterable wrapper 
+            if 'Vector' in type(requested).__name__:
+                return VectorWaspNode([(v, None) for v in requested])
+            return WaspNode(requested)
+        else:
+            # Number of times an entry can occur is infinite by default
+            max_occurs = math.inf
+
+            # The schema node should be unique and not a collections
+            candidate = self._schemanode.child_by_name(string(name))
+            assert len(candidate) > 0, "No definition of '"+name+"' exists in "+self._nodeview.path() 
+            base_schema = candidate[0]
+
+            if not base_schema.child_count() == 0:
+                maxoccurs_node = base_schema.child_by_name("MaxOccurs")[0]
+                if not maxoccurs_node.child_count() == 0:
+                    n = maxoccurs_node.child_at(2).to_string()
+                    if n != "NoLimit":
+                        max_occurs = int(n)
+                else:
+                    raise RuntimeWarning(f"Failed to locate maximum possible occurrences of {name} in schema. Assuming unlimited.")
+            else:
+                raise RuntimeWarning(f"Failed to locate node, {name}, in schema. Assuming unlimited occurrences")
+
+        if max_occurs > 1:
+            return VectorWaspNode([(v,base_schema) for v in requested])
+        else:
+            return WaspNode(requested[0], base_schema)
+
+    def child_at(self,i:int) -> "WaspNode":
+        '''Returns the node at a given node index.'''
+        if not self._schemanode:
+            return WaspNode(self._nodeview.child_at(i))
+        else:
+            nv = self._nodeview.child_at(i)
+            return WaspNode(nv, self._schemanode.child_by_name(nv.name())[0])
+
+    def __getitem__(self,i:"int|str") -> "WaspNode":
+        '''
+        Specialization of "[]" to allow accessing child nodes by node index.
+        Workaround for not being able to use Python keywords in the dot operator (__getattr__).
+        Preserve the index-based method
+        '''
+        if isinstance(self._nodeview,(VectorNodeView,VectorSONNodeView,VectorDDINodeView,VectorEDDINodeView,VectorHITNodeView)):
+            return WaspNode(self._nodeview[i], self._schemanode)
+        elif isinstance(i, int):
+            return self.child_at(i)
+        elif isinstance(i, str):
+            return self.child_by_name(i)
+        else:
+            raise AttributeError(f"The provided input {i} is not a str or int")
+
+    def parent(self) -> "WaspNode|None":
+        '''Obtain the parent of this node, None if no parent exists'''
+        hasParent = self._nodeview.has_parent()
+
+        if self._schemanode and hasParent:
+            return WaspNode(self._nodeview.parent(), self._schemanode.parent())
+        elif hasParent:
+            return WaspNode(self._nodeview.parent(), None)
+        return None
+
+class DiagnosticSeverity:
+    Error=1
+    Warning=2
+    Information=3
+    Hint=4
+
+class InterpreterDiagnostic(object):
+
+    @staticmethod
+    def createFromDiagnostic(diagnostic:'Diagnostic'):
+        '''Create InterpreterDiagnostic, optionally from a C++ diagnostic'''
+        id = InterpreterDiagnostic()
+        id._source_name = None if diagnostic is None else str(diagnostic.filename())
+        id._start_line = 1 if diagnostic is None else diagnostic.start_line()
+        id._end_line = 1 if diagnostic is None else diagnostic.end_line()
+        id._start_column = 1 if diagnostic is None else diagnostic.start_column()
+        id._end_column = 1 if diagnostic is None else diagnostic.start_column()
+        id._message = "" if diagnostic is None else str(diagnostic.message())
+        id._str = None if diagnostic is None else str(diagnostic.str()).rstrip()
+        id.severity = 1 # Error:1, Warning:2, Information:4, Hint:4
+        return id
+
+    @staticmethod
+    def createFromNode(severity:int, node:WaspNode, msg:str):
+        id = InterpreterDiagnostic()
+        id._source_name = node.source()
+        id._start_line = node.line()
+        id._end_line = node.last_line()
+        id._start_column = node.column()
+        id._end_column = node.last_column()
+        id._message = node.name() + " " + msg
+        id._str = None 
+        id.severity = severity # Error:1, Warning:2, Information:4, Hint:4
+        return id
+
+    def source(self):
+        return self._source_name
+    def message(self):
+        return self._message
+    def start_line(self):
+        return self._start_line 
+    def end_line(self):
+        return self._end_line
+    def start_column(self):
+        return self._start_column 
+    def end_column(self):
+        return self._end_column
+    
+    def __str__(self):    
+        if self._str is None:
+            s = "{}:{}.{}".format(self._source_name, self._start_line, self._start_column)
+            end_col = 0 if 0 < self._end_column else self._end_column - 1
+            if self._start_line < self._end_line:
+                s += "-{}.{}".format(self._end_line, end_col)
+            elif self._start_column < end_col:
+                s += "-{}".format(self._end_column)
+            s+= ": " + self._message;
+            return s
+        else: return self._str
+        
+
+class Interpreter(object):
+    '''Class providing use of WASP interpreters (SON, EDDI, HIT, etc.)'''
+
+    # This class variable just makes it easier to select the correct constructor
+    _registered_interpreters = {
+            Syntax.SON : DefaultSONInterpreter,
+            Syntax.HIT : DefaultHITInterpreter,
+            Syntax.DDI : DefaultDDInterpreter,
+            Syntax.EDDI : DefaultEDDInterpreter,
+        }
+
+    # This class variable just makes it easier to select the correct constructor
+    _registered_nodeviews = {
+            Syntax.SON : SONNodeView,
+            Syntax.HIT : HITNodeView,
+            Syntax.DDI : DDINodeView,
+            Syntax.EDDI : EDDINodeView,
+        }
+
+    # This class variable just makes it to name syntax that requires schemas
+    _schema_defined = [Syntax.DDI, Syntax.EDDI]
+    
+    def __bool__(self):
+        '''This interpreter is only valid if successfully parsed '''
+        return self.parsed
+
+    def __init__(self, syntax : Syntax, **kwargs):
+        '''
+        Initializes an interpreter with a file located at input path.
+        Requires kwargs["path"] to provide the input file path for
+        initialization. If syntax is definition-drive (DDI or EDDI) a schema path is also required. 
+        The schema path can be provided by kwargs["schema"]. Additionally, kwargs["data"] can be provided
+        to allow passing in-memory input data. Diagnostics will use the input path.
+        '''
+
+        self._err_stream = ostringstream()
+        self._syntax = syntax
+        self._interpreter = self._registered_interpreters[self._syntax](self._err_stream)
+        self._inputdata: stringstream
+        self._schema_interpreter: None|DefaultSONInterpreter = None
+        self._parse_diagnostics: None|list(InterpreterDiagnostic) = None
+        self._deserialize_diagnostics: None|list(InterpreterDiagnostic) = None
+
+        if "schema" in kwargs:
+            self._set_schema(kwargs["schema"])
+        elif self._syntax in self._schema_defined:
+            raise RuntimeError(f"Definition Driven Inputs requires a SON-formatted schema!")
+
+        # Assume interpreter failed to parse
+        self.parsed = False
+        input_path = ""
+        if "path" in kwargs:
+            input_path = kwargs["path"]
+
+        # Check if in-memory input 'data' was provided
+        if "data" in kwargs:
+            # Assign input path for diagnostics
+            if not input_path == "" : self._interpreter.setStreamName(input_path, True)
+            self._inputdata = kwargs["data"]
+            ss = self._inputdata
+            if isinstance(self._inputdata, str):
+                ss = stringstream(self._inputdata)
+            else:
+                raise RuntimeError(f"Data must be a string or stringstream!")
+            self.parsed = self._interpreter.parse(ss)
+        else:
+            self.parsed = self._interpreter.parseFile(input_path)
+
+        if not self.parsed:
+            diagnostics = self._interpreter.error_diagnostics()
+            self._parse_diagnostics = []
+            for d in diagnostics:
+                self._parse_diagnostics.append(InterpreterDiagnostic.createFromDiagnostic(d))
+
+    def _set_schema(self,schema:str):
+        parsed = False
+        # Schemas are SON-formatted
+        self._schema_interpreter = self._registered_interpreters[Syntax.SON](self._err_stream)
+        self._definition = Definition()
+
+        # Either the schema is a file or a string
+        import os
+        if os.path.isfile(schema):
+            parsed = self._schema_interpreter.parseFile(schema)
+        else:
+            parsed = self._schema_interpreter.parse(istringstream(schema))
+
+        if not parsed:
+            raise RuntimeError(f"Failed to parse the input schema...\n {self._err_stream.str()}")
+
+        # Do not setup definition for driving parsing if not a definition-driven interpreter
+        if self._syntax not in self._schema_defined: return
+
+        self._interpreter.set_definition_store(self._definition)
+        created = HIVE.create_definition(self._definition,
+                self._schema_interpreter.root(),
+                self._err_stream, False)
+        if not created:
+            raise RuntimeError(f"Encountered errors creating input definition...\n {self._err_stream.str()}")
+    
+    def parseDiagnostics(self):
+        return self._parse_diagnostics
+
+    def deserializeDiagnostics(self):
+        return self._deserialize_diagnostics
+
+    def find(self, line, column) -> "WaspNode":
+        '''Obtain the node at the given line and column'''
+        schema_node = None
+        if self._schema_interpreter:
+            schema_node = self._schema_interpreter.root()
+        nodeView = self._interpreter.find(line, column)
+        if (nodeView.is_null()): return None
+
+        spec_node = WaspNode(self._registered_nodeviews[self._syntax](
+                        nodeView.node_index(),self._interpreter),
+                schema_node)
+        return spec_node
+
+    def root(self) -> "WaspNode":
+        '''Returns the document root node.'''
+        schema_node = None
+        if self._schema_interpreter:
+            schema_node = self._schema_interpreter.root()
+        spec_node = WaspNode(self._registered_nodeviews[self._syntax](
+                        self._interpreter.root().node_index(),self._interpreter),
+                schema_node)
+        return spec_node
+
+    def __iter__(self) -> "WaspNodeIterator":
+        '''Return an interpreter specialized iterator'''
+        return WaspNodeIterator(self.root())
+
+    def data(self,i:int) -> "str":
+        '''Returns the data for the ith node regardless of hierarchy in the order captured.'''
+        return self._interpreter.data(i)
+
+    def token_count(self) -> "int":
+        '''Returns the number of tokens that the interpreter has lexically processed into the parse tree.'''
+        return self._interpreter.token_count()
+
+    def errors(self) -> "None|List(str)":
+        '''Use the cached schema to validate the cached parse-tree
+        
+        :returns: a list of validation errors or None, if no validation errors
+        
+
+        '''
+
+        # If no schema was provided, no errors are available, return None
+        if self._schema_interpreter is None:
+            return None
+
+        assert self._interpreter, "Unable to check for errors because the document is not available!"
+        valid = HIVE()
+        error_msgs = VectorString()
+        has_errors = False
+
+        validator = {
+            Syntax.SON : valid.validateSON,
+            Syntax.HIT : valid.validateHIT,
+            Syntax.DDI : valid.validateDDI,
+            Syntax.EDDI : valid.validateEDDI,
+        }
+
+        has_errors = not validator[self._syntax] \
+                        (self._registered_nodeviews[Syntax.SON](self._schema_interpreter.root()), \
+                         self._registered_nodeviews[self._syntax](self._interpreter.root()), error_msgs)
+
+        if not has_errors:
+            return None
+
+        HIVE.sort_errors(error_msgs)
+        error_list = []
+        for s in error_msgs:
+            error_list.append(str(s))
+        return error_list
+
+    def createDiagnostic(self, node, msg, severity):
+        assert type(node) is WaspNode
+        if self._deserialize_diagnostics is None:
+            self._deserialize_diagnostics = []
+        self._deserialize_diagnostics.append(InterpreterDiagnostic.createFromNode(severity, node, msg))
+
+    def createErrorDiagnostic(self, node, msg):
+        self.createDiagnostic(node, msg, DiagnosticSeverity.Error)
+
+    def createWarningDiagnostic(self, node, msg):
+        self.createDiagnostic(node, msg, DiagnosticSeverity.Warning)
+
+    def createInformationDiagnostic(self, node, msg):
+        self.createDiagnostic(node, msg, DiagnosticSeverity.Information)
+
+    def createHintDiagnostic(self, node, msg):
+        self.createDiagnostic(node, msg, DiagnosticSeverity.Hint)

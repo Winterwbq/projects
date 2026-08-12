@@ -1,0 +1,65 @@
+[Tests]
+  issues = '#15640'
+  design = 'navier_stokes/insfv.md'
+  [1d-average]
+    type = MMSTest
+    input = test.py
+    test_case = Test1DAverage
+    requirement = 'The system shall be able to solve the incompressible Navier-Stokes equations in one dimension with prescribed inlet velocity and outlet pressure and implicit zero gradient boundary conditions elsewhere, and demonstrate second order convergence in both velocity and pressure when using an average interpolation scheme for the velocity.'
+  []
+  [2d-average]
+    type = MMSTest
+    input = test.py
+    test_case = Test2DAverage
+    requirement = 'The system shall be able to solve the incompressible Navier-Stokes equations in two dimensions with prescribed inlet velocity and outlet pressure, free slip along the walls, and implicit zero gradient boundary conditions elsewhere, and demonstrate second order convergence in both velocity and pressure when using an average interpolation scheme for the velocity.'
+  []
+  [2d-rc]
+    type = MMSTest
+    input = test.py
+    test_case = Test2DRC
+    min_parallel = 16
+    requirement = 'The system shall be able to solve the incompressible Navier-Stokes equations in two dimensions with prescribed inlet velocity and outlet pressure, free slip along the walls, and implicit zero gradient boundary conditions elsewhere, and demonstrate second order convergence in both velocity and pressure when using a Rhie-Chow interpolation scheme for the velocity.'
+    heavy = 'true'
+    max_time = 600
+  []
+  [2d-rc-approx]
+    type = MMSTest
+    input = test.py
+    test_case = Test2DApproximateRC
+    min_parallel = 16
+    requirement = 'The system shall be able to solve the incompressible Navier-Stokes equations in two dimensions with prescribed inlet velocity and outlet pressure, free slip along the walls, and implicit zero gradient boundary conditions elsewhere, and demonstrate second order convergence in both velocity and pressure when using an approximate Rhie-Chow interpolation scheme for the velocity.'
+    heavy = 'true'
+    max_time = 600
+  []
+  [plane-poiseuille-rc]
+    type = MMSTest
+    input = test.py
+    test_case = TestPlanePoiseuilleRC
+    requirement = 'The system shall demonstrate global second order convergence for all variables when using an RC interpolation for the velocity and a two term Taylor series expansion for face values on non-Dirichlet boundaries.'
+    min_parallel = 16
+    heavy = true
+  []
+  [plane-poiseuille-rc-first]
+    type = MMSTest
+    input = test.py
+    test_case = TestPlanePoiseuilleRCFirst
+    requirement = 'The system shall demonstrate global second order convergence for all variables when using an RC interpolation for the velocity and a one term Taylor series expansion for face values on non-Dirichlet boundaries.'
+    min_parallel = 16
+    heavy = true
+  []
+  [2d-average-with-temp]
+    type = MMSTest
+    input = test.py
+    test_case = Test2DAverageTemp
+    requirement = 'The system shall be able to solve the incompressible Navier-Stokes equations, including energy, using an average interpolation for the velocity, with a mix of Dirichlet and zero-gradient boundary conditions for each variable, and demonstrate second order convergence for each variable.'
+    heavy = 'true'
+  []
+  [2d-rc-with-temp]
+    type = MMSTest
+    input = test.py
+    test_case = Test2DRCTemp
+    min_parallel = 16
+    requirement = 'The system shall be able to solve the incompressible Navier-Stokes equations, including energy, using a Rhie-Chow interpolation for the velocity, with a mix of Dirichlet and zero-gradient boundary conditions for each variable, and demonstrate second order convergence for each variable.'
+    heavy = 'true'
+  []
+[]

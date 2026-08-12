@@ -1,0 +1,23 @@
+[Tests]
+  [2D_PlasmaDielectricConstant]
+    type = 'Exodiff'
+    input = '2D_PlasmaDielectricConstant.i'
+    exodiff = '2D_PlasmaDielectricConstant_out.e'
+    heavy = True
+    max_time = 500
+  []
+  [2D_ElectrostaticPermittivity]
+    type = 'Exodiff'
+    input = '2D_ElectrostaticPermittivity.i'
+    exodiff = '2D_ElectrostaticPermittivity_out.e'
+    design = 'ElectrostaticPermittivity.md'
+    issues = '#259'
+    requirement = "The system shall include the ability to provide custom values of the electrostatic permittivity."
+  []
+  [reduced_mobility_heavy_species]
+    type = CSVDiff
+    input = 'reduced_mobility_heavy_species.i'
+    csvdiff = 'reduced_mobility_heavy_species_out.csv'
+    requirement = "The heavy species material shall compute pressure-scaled mobility from a reduced mobility and Einstein diffusivity from the species temperature."
+  []
+[]

@@ -1,0 +1,14 @@
+[Tests]
+  [sheath_energy_absorption_param]
+    type = RunApp
+    input = sheath_energy_absorption.i
+    check_input = true
+    requirement = "The SEE sheath source shall accept an absorbed sheath-energy fraction for electron-energy deposition."
+  []
+  [sheath_energy_absorption_transient]
+    type = CSVDiff
+    input = sheath_energy_absorption_transient.i
+    csvdiff = sheath_energy_absorption_transient_out.csv
+    requirement = "The SEE sheath source shall deposit absorbed sheath energy into the electron-energy equation."
+  []
+[]

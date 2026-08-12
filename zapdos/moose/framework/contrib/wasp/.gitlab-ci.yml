@@ -1,0 +1,107 @@
+variables:
+  GIT_SUBMODULE_STRATEGY: normal
+.stage_artifacts: &stage_artifacts
+  artifacts:
+    paths:
+      - build/
+      - TriBITS/
+      - googletest/
+      - testframework/
+    expire_in: 1 day
+
+mac_clang_testing:
+  tags:
+    - mac
+  script:
+    - . ci/mac_clang_test.sh
+  artifacts:
+    paths:
+      - "WASP*Darwin.sh"
+      - waspConfig_install.cmake
+      - build/wasppy/dist/*.whl
+
+doc_gen:
+  tags:
+    - pandoc, mac
+  script:
+    - which git
+    - git --version
+    - module load cmake
+    - which cmake
+    - which python
+    - python --version
+    - mkdir build
+    - cd build
+    - cmake -DBUILDNAME="$(uname -s)-DocGen-${CI_BUILD_REF_NAME}" -DCMAKE_BUILD_TYPE=DEBUG -Dwasp_ENABLE_ALL_PACKAGES=ON -Dwasp_ENABLE_SWIG=OFF ..
+    - make doc_gen
+  artifacts:
+    paths:
+      - build/WorkbenchAnalysisSequenceProcessor.docx
+      - build/WorkbenchAnalysisSequenceProcessor.pdf
+
+linux_gcc_testing:
+  tags:
+    - linux
+    - pbs
+  script:
+    - ci/linux_gcc_test.sh
+  artifacts:
+    paths:
+      - "WASP*Linux.sh"
+      - build/wasppy/dist/*.whl
+      - waspConfig_install.cmake
+
+linux_gcc_analysis:
+  tags:
+    - linux
+  script:
+    - ci/linux_gcc_analysis.sh
+  allow_failure: true
+
+windows_shared_vs2022_testing:
+  tags:
+    - vs2022
+  before_script:
+    - echo Cleaning up existing submodule directory...
+    - git submodule deinit -f --all
+    - IF EXIST TriBITS (
+        rmdir /S /Q TriBITS
+      )
+    - git submodule update --init --recursive
+  script:
+    - .\ci\vs2022_shared_test.bat
+  artifacts:
+    paths:
+      - build/wasppy/dist/*.whl
+
+.windows_vs2013_testing:
+  tags:
+    - vs2013
+  script:
+    - .\ci\vs2013_test.bat
+  artifacts:
+    paths:
+      - build.log
+      - error.log
+
+.windows_shared_vs2013_testing:
+  tags:
+    - vs2013
+  script:
+    - .\ci\vs2013_shared_test.bat
+  artifacts:
+    paths:
+      - build.log
+      - error.log
+
+
+.linux_gcc54_testing:
+  tags:
+    - linux
+    - gcc5.4
+    - pbs
+  script:
+    - . ci/linux_gcc5.4_test.sh
+  artifacts:
+    paths:
+      - build/wasppy/dist/*.whl

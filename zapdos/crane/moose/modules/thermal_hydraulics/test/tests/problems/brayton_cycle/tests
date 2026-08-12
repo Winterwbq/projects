@@ -1,0 +1,38 @@
+[Tests]
+  design = 'brayton_cycle.md'
+  issues = '#20196'
+
+  [open]
+    requirement = 'The system shall be able to model an open Brayton cycle'
+    type = CSVDiff
+    input = 'open_brayton_cycle.i'
+    cli_args = "Executioner/num_steps=5"
+    csvdiff = 'open_brayton_cycle.csv'
+    abs_zero = 1e-10
+    rel_err = 1e-5
+    max_parallel = 1
+    capabilities = 'method=opt' # floating point exception in dbg
+  []
+
+  [closed]
+    requirement = 'The system shall be able to model a closed Brayton cycle'
+    type = CSVDiff
+    input = 'closed_brayton_cycle.i'
+    csvdiff = 'closed_brayton_cycle.csv'
+    abs_zero = 1e-10
+    rel_err = 1e-5
+    max_parallel = 1
+    max_threads = 1 # fails first time step after round-off error change
+    restep = false # Test is prescribed to abort on failed timestep
+    cli_args = "Executioner/num_steps=5"
+  []
+
+  [recuperated]
+    type = RunApp
+    input = 'recuperated_brayton_cycle.i'
+    check_input = true
+    max_parallel = 1
+    recover = false
+    requirement = 'The system shall be able to model an open recuperated Brayton cycle'
+  []
+[]

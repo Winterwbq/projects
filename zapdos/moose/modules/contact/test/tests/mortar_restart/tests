@@ -1,0 +1,28 @@
+[Tests]
+  design = 'constraints/ComputeFrictionalForceLMMechanicalContact.md '
+  issues = '#17495'
+  [frictional_bouncing_block_action_restart_1]
+    type = 'Exodiff'
+    input = 'frictional_bouncing_block_action_restart_1.i'
+    exodiff = 'frictional_bouncing_block_action_restart_1_out.e'
+    custom_cmp = frictional_bouncing_block_action_restart_1.cmp
+    requirement = 'The system shall be able to run a two-dimensional frictional model using the '
+                  'contact action for mortar applications'
+    valgrind = 'heavy'
+    capabilities = 'method!=dbg'
+    recover = false # output on final
+  []
+  [frictional_bouncing_block_action_restart_2]
+    type = 'Exodiff'
+    input = 'frictional_bouncing_block_action_restart_2.i'
+    exodiff = 'frictional_bouncing_block_action_restart_2_out.e'
+    recover = false
+    custom_cmp = frictional_bouncing_block_action_restart_1.cmp
+    requirement = 'The system shall be able to restart a mortar mechanical contact simulation via '
+                  'the action without generating additional lower dimensional subdomains which may '
+                  'be unused'
+    prereq = 'frictional_bouncing_block_action_restart_1'
+    valgrind = 'heavy'
+    capabilities = 'method!=dbg'
+  []
+[]

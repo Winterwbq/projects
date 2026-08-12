@@ -1,0 +1,10 @@
+[Tests]
+    design = Parser.md
+    issues = '#14894'
+  [test]
+    type = Exodiff
+    input = test.i
+    exodiff = test_out.e
+    requirement = 'The system shall be able to read input file syntax and write into map parameters.'
+  []
+[]
