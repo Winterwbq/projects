@@ -1,0 +1,26 @@
+{
+  "case": "source_only",
+  "coordinate_system": "cartesian_x_z",
+  "domain_m": {
+    "x": [
+      0.0,
+      0.25
+    ],
+    "z": [
+      0.0,
+      0.3
+    ]
+  },
+  "grid": {
+    "nx": 101,
+    "nz": 161
+  },
+  "bfield_magnitude_range_t": [
+    9.999999999999999e-05,
+    0.09999999999999999
+  ],
+  "bfield_sha256": {
+    "Bx_T.tbl": "38eadad7b2da4d2c76dfb465d94bf5308639f0b37a798c1d0da53fa9c7259d3f",
+    "By_T.tbl": "4147b4c8235f04b868f949ddb999aabee181bd56b92038323f3a909bc11c5124"
+  }
+}

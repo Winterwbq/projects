@@ -1,76 +1,28 @@
 {
   "case": "four_coil_img3092",
   "coordinate_system": "cartesian_x_z_per_unit_y_depth",
-  "domain_m": {
-    "x": [
-      0.0,
-      0.25
-    ],
-    "z": [
-      0.0,
-      0.3
-    ]
+  "paired_bfield_directory": "/Users/bingqingwang/projects/cu_pvd_hybrid_2d/runs/zapdos_cartesian_xz_25x30_four_coil_img3092/moose_tables",
+  "bfield_sha256": {
+    "Bx_T.tbl": "f1c7051fab602a9cea59c789930032d16ad7bdf89a9bb1dc48fecff3696831ac",
+    "By_T.tbl": "850157f76db9b45f1d20be6d3dd17808c5571c2f138d92e24a2a611cefa9560b"
   },
-  "powered_target_x_m": [
-    0.19,
-    0.22
-  ],
-  "source_center_m": 0.205,
-  "launch_lobe_centers_m": [
-    0.195,
-    0.215
-  ],
-  "magnetic_pole_centers_m": [
-    0.195,
-    0.215
-  ],
-  "coil_weights": [
-    44.6,
-    12.6,
-    3.2,
-    13.7
-  ],
-  "reference_four_coil_case": "IMG_3092 four-coil R-Z case",
-  "field_assembly": "established_rz_total_minus_old_source_plus_current_cartesian_source",
-  "boundary_layout_m": {
-    "left_wall_x": 0.0,
-    "right_wall_x": 0.25,
-    "wafer_x": [
-      0.07,
-      0.17
-    ],
-    "powered_target_x": [
-      0.19,
-      0.22
-    ]
-  },
+  "neutral_table": "/Users/bingqingwang/projects/cu_pvd_hybrid_2d/runs/zapdos_cartesian_xz_25x30_neutral/moose_tables/n_Cu_m3.tbl",
+  "neutral_sha256": "d79b0499f0abe5981d5f54c1e406b6d82114c50c33c23ba11d52d09003d30e14",
   "transport_settings": {
+    "direction_model": "mostly_vertical_bfield_guided",
     "local_fraction": 0.9,
     "local_attenuation_length_m": 0.006,
     "guided_attenuation_length_m": 0.2,
     "spread_angle_degrees": 5.0,
+    "bfield_guidance_fraction": 0.3,
     "transition_field_t": 0.001,
-    "bfield_guidance_fraction": 0.3
+    "see_magnitude_scale": 1.2
   },
-  "see_transport_direction": "mostly_vertical_bfield_guided",
-  "see_magnitude_scale": 1.2,
-  "plasma_efficiency": 0.9777102038726888,
-  "see_unscaled_area_integral_m": 0.029331306116180667,
-  "see_area_integral_m": 0.035197567339416806,
-  "mean_path_length_m": 0.30020826098790077,
+  "plasma_efficiency": 0.9776250036779454,
   "termination_counts": {
-    "bottom_shield": 41
+    "max_path": 41,
+    "boundary": 41
   },
-  "bfield_magnitude_range_t": [
-    0.0014580170126424084,
-    0.10000000000000003
-  ],
-  "source_bfield_axial_compression": {
-    "compressed_z_m": [
-      0.12,
-      0.3
-    ],
-    "uniform_lower_source_field_t": 0.0001,
-    "mapping": "cubic_smoothstep"
-  }
+  "see_unscaled_area_integral_m": 0.02932875011033835,
+  "see_area_integral_m": 0.03519450013240603
 }

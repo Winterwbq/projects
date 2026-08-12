@@ -1,0 +1,26 @@
+{
+  "case": "four_coil",
+  "coordinate_system": "cartesian_x_z",
+  "domain_m": {
+    "x": [
+      0.0,
+      0.25
+    ],
+    "z": [
+      0.0,
+      0.3
+    ]
+  },
+  "grid": {
+    "nx": 101,
+    "nz": 161
+  },
+  "bfield_magnitude_range_t": [
+    9.999999999999999e-05,
+    0.10000000000000002
+  ],
+  "bfield_sha256": {
+    "Bx_T.tbl": "886d82c37facd3e563a211852299b390b4cc281b818bf82eb9ad0509626f9015",
+    "By_T.tbl": "290505a655a378d4c393de7f03538d2cd7753072ccb3680b11e6a45db578e522"
+  }
+}

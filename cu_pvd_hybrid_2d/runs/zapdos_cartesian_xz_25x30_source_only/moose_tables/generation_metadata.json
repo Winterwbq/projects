@@ -1,83 +1,28 @@
 {
+  "case": "source_only",
   "coordinate_system": "cartesian_x_z_per_unit_y_depth",
-  "domain_m": {
-    "x": [
-      0.0,
-      0.25
-    ],
-    "z": [
-      0.0,
-      0.3
-    ]
+  "paired_bfield_directory": "/Users/bingqingwang/projects/cu_pvd_hybrid_2d/runs/zapdos_cartesian_xz_25x30_source_only/moose_tables",
+  "bfield_sha256": {
+    "Bx_T.tbl": "38eadad7b2da4d2c76dfb465d94bf5308639f0b37a798c1d0da53fa9c7259d3f",
+    "By_T.tbl": "4147b4c8235f04b868f949ddb999aabee181bd56b92038323f3a909bc11c5124"
   },
-  "powered_target_x_m": [
-    0.19,
-    0.22
-  ],
-  "source_center_m": 0.205,
-  "launch_lobe_centers_m": [
-    0.195,
-    0.215
-  ],
-  "magnetic_pole_centers_m": [
-    0.195,
-    0.215
-  ],
-  "reference_center_m": 0.15,
-  "boundary_layout_m": {
-    "left_wall_x": 0.0,
-    "right_wall_x": 0.25,
-    "wafer_x": [
-      0.07,
-      0.17
-    ],
-    "powered_target_x": [
-      0.19,
-      0.22
-    ]
-  },
+  "neutral_table": "/Users/bingqingwang/projects/cu_pvd_hybrid_2d/runs/zapdos_cartesian_xz_25x30_neutral/moose_tables/n_Cu_m3.tbl",
+  "neutral_sha256": "d79b0499f0abe5981d5f54c1e406b6d82114c50c33c23ba11d52d09003d30e14",
   "transport_settings": {
+    "direction_model": "vertical_downward",
     "local_fraction": 0.995,
     "local_attenuation_length_m": 0.006,
     "guided_attenuation_length_m": 0.05,
     "spread_angle_degrees": 10.0,
-    "transition_field_t": 0.001
+    "bfield_guidance_fraction": 0.0,
+    "transition_field_t": 0.001,
+    "see_magnitude_scale": 1.2
   },
-  "see_transport_direction": "vertical_downward",
-  "see_magnitude_scale": 1.2,
-  "plasma_efficiency": 0.9999037264911177,
-  "see_unscaled_area_integral_m": 0.02999711179473353,
-  "see_area_integral_m": 0.03599653415368024,
-  "mean_path_length_m": 0.19750000000000006,
+  "plasma_efficiency": 0.9999190835661431,
   "termination_counts": {
-    "cutoff": 41
+    "max_path": 41,
+    "boundary": 41
   },
-  "bfield_magnitude_range_t": [
-    9.999999999999998e-05,
-    0.09999999999999999
-  ],
-  "bfield_axial_compression": {
-    "original_z_m": [
-      0.0,
-      0.3
-    ],
-    "compressed_z_m": [
-      0.12,
-      0.3
-    ],
-    "uniform_lower_field_t": 0.0001
-  },
-  "bfield_magnitude_profile": {
-    "profile": "smooth_axial_coordinate_compression",
-    "original_z_m": [
-      0.0,
-      0.3
-    ],
-    "compressed_z_m": [
-      0.12,
-      0.3
-    ],
-    "mapping": "cubic_smoothstep",
-    "direction": "preserved"
-  }
+  "see_unscaled_area_integral_m": 0.029997572506984295,
+  "see_area_integral_m": 0.035997087008381154
 }

@@ -36,8 +36,11 @@
 #   plasma-potential Dirichlet value. This deliberately drives a bulk electric
 #   field and does not predict either target or wafer sheath structure.
 #
-# Generate the paired Cartesian source-only B-field and SEE map selected below:
-#   python3 scripts/generate_cartesian_xz_source_bfield_see.py
+# Generate the common neutral map, the three B-field cases, and the SEE maps
+# paired to those exact B-field tables:
+#   python3 scripts/generate_cartesian_xz_neutral_cu.py
+#   python3 scripts/generate_cartesian_xz_bfields.py --case all
+#   python3 scripts/generate_cartesian_xz_see_maps.py --case all
 #
 # The default below selects the source-only B field and its paired source map.
 # Invoke Zapdos from the cu_pvd_hybrid_2d/ root:
@@ -144,7 +147,7 @@ initial_bulk_mean_energy = 6
 magnetron_initial_mean_energy = 8.0
 position_scale       = 1.0
 
-table_dir      = '../runs/zapdos_hpem_rz_30cm/moose_tables'
+table_dir      = '../runs/zapdos_cartesian_xz_25x30_neutral/moose_tables'
 bfield_table_dir = '../runs/zapdos_cartesian_xz_25x30_four_coil_img3092/moose_tables'
 cartesian_see_map_file = '../runs/zapdos_cartesian_xz_25x30_four_coil_img3092/moose_tables/see_spatial_weight_m-1.tbl'
 rate_coeff_dir = '../rate_coefficients_cu'

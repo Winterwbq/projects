@@ -1,0 +1,24 @@
+{
+  "coordinate_system": "cartesian_x_z",
+  "domain_m": {
+    "x": [
+      0.0,
+      0.25
+    ],
+    "z": [
+      0.0,
+      0.3
+    ]
+  },
+  "source_center_x_m": 0.205,
+  "background_density_m-3": 3e+18,
+  "plume_peak_density_m-3": 4e+18,
+  "density_range_m-3": [
+    3.475242114830109e+18,
+    7.739609790344859e+18
+  ],
+  "grid": {
+    "nx": 101,
+    "nz": 161
+  }
+}

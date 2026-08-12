@@ -1,6 +1,9 @@
+#!/usr/bin/env python3
+"""Postprocess Cartesian X-Z Zapdos diagnostics and Cu-ion flux results."""
 from __future__ import annotations
 
 import argparse
+import csv
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -12,11 +15,18 @@ if TYPE_CHECKING:
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_EXODUS = ROOT / "zapdos_templates" / "cu_pvd_hybrid_effective_source_30cm_exodus.e"
+DEFAULT_EXODUS = ROOT / "zapdos_templates" / "Outputs"/"cu_pvd_hybrid_hpem_xz_30cm_4coilsBimg3092_guidedSEE_1.e"
 DEFAULT_OUTPUT = ROOT / "post" / "zapdos_last_timestep_diagnostics_30cm_9.png"
-ION_DENSITY_LOG_RANGE = (1e12 , 1e16)
+ION_DENSITY_LOG_RANGE = (1e12 , 1e15)
 CHAMBER_DENSITY_PERCENTILES = (2.0, 98.0)
 DENSITY_GROWTH_PERCENTILE = 98.0
+AVOGADRO = 6.02214076e23
+BOLTZMANN = 1.3807e-23
+ELEMENTARY_CHARGE = 1.602e-19
+ION_TEMPERATURE = 300.0
+REDUCED_MOBILITY = 2.2e-4
+REFERENCE_PRESSURE = 101325.0
+REFERENCE_TEMPERATURE = 273.15
 
 
 def _decode_names(raw: np.ndarray) -> list[str]:
@@ -527,87 +537,377 @@ def plot_last_timestep(
             print(f"{name}: min={np.nanmin(bulk_values):.3e}, max={np.nanmax(bulk_values):.3e}")
 
 
+def _element_log_gradient(
+    x: np.ndarray,
+    z: np.ndarray,
+    connect: np.ndarray,
+    log_density: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Return the QUAD4 log-density gradient at each element center."""
+    if connect.ndim != 2 or connect.shape[1] != 4:
+        raise ValueError("Cu+ flux reconstruction requires QUAD4 elements")
+    xe = x[connect]
+    ze = z[connect]
+    ue = log_density[connect]
+    dxi = np.asarray([-0.25, 0.25, 0.25, -0.25])
+    deta = np.asarray([-0.25, -0.25, 0.25, 0.25])
+    dx_dxi = np.sum(xe * dxi, axis=1)
+    dz_dxi = np.sum(ze * dxi, axis=1)
+    dx_deta = np.sum(xe * deta, axis=1)
+    dz_deta = np.sum(ze * deta, axis=1)
+    du_dxi = np.sum(ue * dxi, axis=1)
+    du_deta = np.sum(ue * deta, axis=1)
+    determinant = dx_dxi * dz_deta - dz_dxi * dx_deta
+    if np.any(np.isclose(determinant, 0.0)):
+        raise ValueError("mesh contains a degenerate QUAD4 element")
+    du_dx = (dz_deta * du_dxi - dz_dxi * du_deta) / determinant
+    du_dz = (-dx_deta * du_dxi + dx_dxi * du_deta) / determinant
+    return du_dx, du_dz
+
+
+def reconstruct_ion_flux(
+    data: dict[str, np.ndarray | float],
+) -> dict[str, np.ndarray]:
+    """Reconstruct Cartesian Cu+ drift-diffusion flux from one saved timestep."""
+    x = np.asarray(data["x"], dtype=float)
+    z = np.asarray(data["z"], dtype=float)
+    connect = np.asarray(data["connect"], dtype=int)
+    log_cup = np.asarray(data["log_cup"], dtype=float)
+    pressure = np.asarray(data["pressure"], dtype=float)
+    density = np.asarray(data["density"], dtype=float)
+    ex = np.asarray(data["ex"], dtype=float)
+    ez = np.asarray(data["ez"], dtype=float)
+    dlogn_dx, dlogn_dz = _element_log_gradient(x, z, connect, log_cup)
+    element_pressure = np.mean(pressure[connect], axis=1)
+    if np.any(element_pressure <= 0.0):
+        raise ValueError("Cu pressure must be positive")
+    mobility = (
+        REDUCED_MOBILITY
+        * REFERENCE_PRESSURE
+        / element_pressure
+        * ION_TEMPERATURE
+        / REFERENCE_TEMPERATURE
+    )
+    diffusivity = mobility * ION_TEMPERATURE * BOLTZMANN / ELEMENTARY_CHARGE
+    drift_x = mobility * ex * density
+    drift_z = mobility * ez * density
+    diffusion_x = -diffusivity * density * dlogn_dx
+    diffusion_z = -diffusivity * density * dlogn_dz
+    gamma_x = drift_x + diffusion_x
+    gamma_z = drift_z + diffusion_z
+    return {
+        "x": np.mean(x[connect], axis=1),
+        "z": np.mean(z[connect], axis=1),
+        "gamma_x": gamma_x,
+        "gamma_z": gamma_z,
+        "magnitude": np.hypot(gamma_x, gamma_z),
+        "gamma_to_wafer": -gamma_z,
+        "drift_to_wafer": -drift_z,
+        "diffusion_to_wafer": -diffusion_z,
+    }
+
+
+def load_flux_exodus(
+    path: Path | str, *, target_time: float | None = None
+) -> dict[str, np.ndarray | float]:
+    """Load the fields required for Cartesian Cu+ flux reconstruction."""
+    from scipy.io import netcdf_file
+
+    exodus_path = Path(path)
+    with netcdf_file(exodus_path, "r", mmap=False) as exodus:
+        nodal_names = _decode_names(exodus.variables["name_nod_var"].data)
+        element_names = _decode_names(exodus.variables["name_elem_var"].data)
+        times = np.asarray(exodus.variables["time_whole"][:]).copy()
+        step = int(times.size - 1) if target_time is None else int(
+            np.argmin(np.abs(times - target_time))
+        )
+
+        def nodal(name: str) -> np.ndarray:
+            index = nodal_names.index(name) + 1
+            return np.asarray(exodus.variables[f"vals_nod_var{index}"][step]).copy()
+
+        def element(name: str) -> np.ndarray:
+            index = element_names.index(name) + 1
+            return np.asarray(exodus.variables[f"vals_elem_var{index}eb1"][step]).copy()
+
+        return {
+            "time": float(times[step]),
+            "x": np.asarray(exodus.variables["coordx"][:]).copy(),
+            "z": np.asarray(exodus.variables["coordy"][:]).copy(),
+            "connect": np.asarray(exodus.variables["connect1"][:]).astype(int) - 1,
+            "log_cup": nodal("Cu+"),
+            "pressure": nodal("p_Cu_local"),
+            "density": element("Cu+_density"),
+            "ex": element("EFieldx"),
+            "ez": element("EFieldy"),
+        }
+
+
+def _nearest_z_profiles(
+    flux: dict[str, np.ndarray],
+    z_planes_cm: tuple[float, ...] | list[float],
+    *,
+    x_range_cm: tuple[float, float] = (0.0, 25.0),
+) -> dict[float, dict[str, np.ndarray | float]]:
+    x = np.asarray(flux["x"])
+    z = np.asarray(flux["z"])
+    rows = np.unique(np.round(z, 12))
+    profiles: dict[float, dict[str, np.ndarray | float]] = {}
+    for requested_cm in z_planes_cm:
+        actual = float(rows[np.argmin(np.abs(rows - requested_cm / 100.0))])
+        selected = np.isclose(z, actual, atol=1.0e-11, rtol=0.0)
+        selected &= x >= x_range_cm[0] / 100.0
+        selected &= x <= x_range_cm[1] / 100.0
+        indices = np.flatnonzero(selected)
+        indices = indices[np.argsort(x[indices])]
+        if indices.size == 0:
+            raise ValueError(f"no samples near Z={requested_cm:g} cm")
+        profiles[float(requested_cm)] = {
+            "actual_z": actual,
+            "x": x[indices],
+            "gamma_to_wafer": np.asarray(flux["gamma_to_wafer"])[indices],
+        }
+    return profiles
+
+
+def plot_ion_flux(
+    exodus_path: Path | str,
+    output_path: Path | str,
+    *,
+    target_time: float | None = None,
+    z_planes_cm: tuple[float, ...] = (1.0, 5.0, 10.0),
+    wafer_x_cm: tuple[float, float] = (7.0, 17.0),
+) -> None:
+    """Plot Cu+ flux magnitude, wafer-directed flux, vectors, and profiles."""
+    import matplotlib.pyplot as plt
+    import matplotlib.tri as mtri
+    from matplotlib.colors import LogNorm, SymLogNorm
+
+    data = load_flux_exodus(exodus_path, target_time=target_time)
+    flux = reconstruct_ion_flux(data)
+    x_cm = np.asarray(flux["x"]) * 100.0
+    z_cm = np.asarray(flux["z"]) * 100.0
+    magnitude = np.asarray(flux["magnitude"])
+    signed = np.asarray(flux["gamma_to_wafer"])
+    triangulation = mtri.Triangulation(x_cm, z_cm)
+    positive = magnitude[np.isfinite(magnitude) & (magnitude > 0.0)]
+    if positive.size == 0:
+        raise ValueError("Cu+ flux magnitude has no positive values")
+    vmin, vmax = np.percentile(positive, (1.0, 99.0))
+    signed_limit = max(float(np.percentile(np.abs(signed), 99.0)), 1.0)
+    linear_width = max(signed_limit * 1.0e-3, 1.0)
+    profiles = _nearest_z_profiles(
+        flux, z_planes_cm, x_range_cm=wafer_x_cm
+    )
+
+    figure, axes = plt.subplots(1, 3, figsize=(16.0, 5.2), constrained_layout=True)
+    image = axes[0].tripcolor(
+        triangulation,
+        magnitude,
+        shading="flat",
+        cmap="viridis",
+        norm=LogNorm(vmin=max(float(vmin), 1.0e-300), vmax=float(vmax)),
+    )
+    figure.colorbar(image, ax=axes[0], label=r"$|\Gamma_{Cu+}|$ [m$^{-2}$ s$^{-1}$]")
+    axes[0].set_title("Cu$^+$ flux magnitude")
+    stride = max(1, magnitude.size // 600)
+    safe = np.maximum(magnitude, np.finfo(float).tiny)
+    axes[0].quiver(
+        x_cm[::stride],
+        z_cm[::stride],
+        np.asarray(flux["gamma_x"])[::stride] / safe[::stride],
+        np.asarray(flux["gamma_z"])[::stride] / safe[::stride],
+        color="white",
+        scale=35,
+        width=0.002,
+    )
+    signed_image = axes[1].tripcolor(
+        triangulation,
+        signed,
+        shading="flat",
+        cmap="coolwarm",
+        norm=SymLogNorm(
+            linthresh=linear_width,
+            vmin=-signed_limit,
+            vmax=signed_limit,
+        ),
+    )
+    figure.colorbar(
+        signed_image,
+        ax=axes[1],
+        label=r"$\Gamma_{Cu+\rightarrow wafer}$ [m$^{-2}$ s$^{-1}$]",
+    )
+    axes[1].set_title("Signed wafer-directed Cu$^+$ flux")
+    for requested, profile in profiles.items():
+        axes[2].plot(
+            np.asarray(profile["x"]) * 100.0,
+            np.asarray(profile["gamma_to_wafer"]),
+            linewidth=2.0,
+            label=f"Z={requested:g} cm",
+        )
+    axes[2].axhline(0.0, color="black", linewidth=0.8)
+    axes[2].set_xlim(*wafer_x_cm)
+    axes[2].set_xlabel("X over wafer [cm]")
+    axes[2].set_ylabel(r"$\Gamma_{Cu+\rightarrow wafer}$ [m$^{-2}$ s$^{-1}$]")
+    axes[2].set_title("Wafer-span profiles")
+    axes[2].legend(frameon=False)
+    axes[2].grid(alpha=0.25)
+    for axis in axes[:2]:
+        axis.plot([7.0, 17.0], [0.0, 0.0], color="lime", linewidth=3.0)
+        axis.plot([19.0, 22.0], [30.0, 30.0], color="cyan", linewidth=3.0)
+        axis.set_xlim(0.0, 25.0)
+        axis.set_ylim(0.0, 30.0)
+        axis.set_aspect("equal")
+        axis.set_xlabel("X [cm]")
+        axis.set_ylabel("Z [cm]")
+    figure.suptitle(f"Cartesian Cu$^+$ flux at t={data['time']:.6e} s", fontweight="bold")
+    destination = Path(output_path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    figure.savefig(destination, dpi=200)
+    plt.close(figure)
+
+
+def compare_ion_flux(
+    cases: list[tuple[str, Path]],
+    output_path: Path | str,
+    csv_path: Path | str,
+    *,
+    target_time: float | None = None,
+    z_planes_cm: tuple[float, ...] = (1.0, 5.0, 10.0),
+) -> None:
+    """Compare signed wafer-directed Cu+ profiles from multiple x-z cases."""
+    import matplotlib.pyplot as plt
+
+    loaded: dict[str, tuple[float, dict[float, dict[str, np.ndarray | float]]]] = {}
+    for label, path in cases:
+        data = load_flux_exodus(path, target_time=target_time)
+        flux = reconstruct_ion_flux(data)
+        loaded[label] = (
+            float(data["time"]),
+            _nearest_z_profiles(flux, z_planes_cm),
+        )
+    figure, axes = plt.subplots(len(z_planes_cm), 1, figsize=(9.0, 3.4 * len(z_planes_cm)), sharex=True, constrained_layout=True)
+    axes = np.atleast_1d(axes)
+    colors = ("#0072B2", "#D55E00", "#009E73", "#CC79A7")
+    for axis, requested in zip(axes, z_planes_cm):
+        for color, (label, (time_value, profiles)) in zip(colors, loaded.items()):
+            profile = profiles[float(requested)]
+            axis.plot(
+                np.asarray(profile["x"]) * 100.0,
+                np.asarray(profile["gamma_to_wafer"]),
+                color=color,
+                linewidth=2.0,
+                label=f"{label}, t={time_value:.3e} s",
+            )
+        axis.axhline(0.0, color="black", linewidth=0.8)
+        axis.set_ylabel(r"$\Gamma_{Cu+\rightarrow wafer}$")
+        axis.set_title(f"Nearest mesh row to Z={requested:g} cm")
+        axis.grid(alpha=0.25)
+        axis.legend(frameon=False)
+    axes[-1].set_xlabel("X [cm]")
+    destination = Path(output_path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    figure.savefig(destination, dpi=200)
+    plt.close(figure)
+
+    csv_destination = Path(csv_path)
+    csv_destination.parent.mkdir(parents=True, exist_ok=True)
+    with csv_destination.open("w", newline="") as handle:
+        writer = csv.DictWriter(
+            handle,
+            fieldnames=("case", "time_s", "requested_z_cm", "actual_z_cm", "x_cm", "gamma_to_wafer_m-2_s-1"),
+        )
+        writer.writeheader()
+        for label, (time_value, profiles) in loaded.items():
+            for requested, profile in profiles.items():
+                for x_value, gamma in zip(profile["x"], profile["gamma_to_wafer"]):
+                    writer.writerow(
+                        {
+                            "case": label,
+                            "time_s": time_value,
+                            "requested_z_cm": requested,
+                            "actual_z_cm": float(profile["actual_z"]) * 100.0,
+                            "x_cm": float(x_value) * 100.0,
+                            "gamma_to_wafer_m-2_s-1": float(gamma),
+                        }
+                    )
+
+
+def _case_argument(value: str) -> tuple[str, Path]:
+    if "=" not in value:
+        raise argparse.ArgumentTypeError("case must be LABEL=EXODUS_PATH")
+    label, path = value.split("=", 1)
+    if not label or not path:
+        raise argparse.ArgumentTypeError("case must be LABEL=EXODUS_PATH")
+    return label, Path(path)
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description=__doc__)
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    diagnostics = subparsers.add_parser("diagnostics", help="Plot plasma-field diagnostics")
+    diagnostics.add_argument("--exodus", type=Path, required=True)
+    diagnostics.add_argument("--output", type=Path, required=True)
+    diagnostics.add_argument("--timestep", type=int)
+    diagnostics.add_argument("--time", type=float)
+    diagnostics.add_argument("--bulk-margin-cm", type=float, default=0.0)
+    diagnostics.add_argument("--density-growth", action="store_true")
+    diagnostics.add_argument("--density-contrast", action="store_true")
+    diagnostics.add_argument("--density-style", choices=("default", "chamber"), default="default")
+    diagnostics.add_argument("--density-percentiles", type=float, nargs=2, default=CHAMBER_DENSITY_PERCENTILES)
+
+    ion_flux = subparsers.add_parser("ion-flux", help="Plot one case's Cu+ flux")
+    ion_flux.add_argument("--exodus", type=Path, required=True)
+    ion_flux.add_argument("--output", type=Path, required=True)
+    ion_flux.add_argument("--time", type=float)
+    ion_flux.add_argument("--z-cm", type=float, nargs="+", default=(1.0, 5.0, 10.0))
+    ion_flux.add_argument("--wafer-x-cm", type=float, nargs=2, default=(7.0, 17.0))
+
+    comparison = subparsers.add_parser("compare-ion-flux", help="Compare Cu+ flux cases")
+    comparison.add_argument("--case", action="append", type=_case_argument, required=True)
+    comparison.add_argument("--output", type=Path, required=True)
+    comparison.add_argument("--csv", type=Path, required=True)
+    comparison.add_argument("--time", type=float)
+    comparison.add_argument("--z-cm", type=float, nargs="+", default=(1.0, 5.0, 10.0))
+    return parser
+
+
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Plot 2D diagnostics at a saved timestep in a Zapdos Exodus file."
-    )
-    parser.add_argument("--exodus", type=Path, default=DEFAULT_EXODUS)
-    parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
-    parser.add_argument(
-        "--timestep",
-        type=int,
-        default=None,
-        help="Saved Exodus timestep index to plot. Defaults to the last saved step. Negative indices count from the end.",
-    )
-    parser.add_argument(
-        "--time",
-        type=float,
-        default=None,
-        help="Physical time in seconds; plot the nearest saved Exodus timestep.",
-    )
-    parser.add_argument(
-        "--bulk-margin-cm",
-        type=float,
-        default=0,
-        help="Mask out elements/nodes this close to the bottom and top boundaries.",
-    )
-    parser.add_argument(
-        "--density-growth",
-        action="store_true",
-        help=(
-            "Plot signed electron/Cu+ density change relative to the first populated saved "
-            "timestep using a shared linear, zero-centered color scale."
-        ),
-    )
-    parser.add_argument(
-        "--density-contrast",
-        action="store_true",
-        help="Plot electron/Cu+ density as log10(density / bulk median) to reveal weak bulk variation.",
-    )
-    parser.add_argument(
-        "--density-style",
-        choices=("default", "chamber"),
-        default="default",
-        help=(
-            "Density color scaling. 'default' keeps log density panels unless --density-contrast "
-            "is set; 'chamber' uses linear 2-98 percentile clipping with the turbo colormap."
-        ),
-    )
-    parser.add_argument(
-        "--density-percentiles",
-        type=float,
-        nargs=2,
-        metavar=("LOW", "HIGH"),
-        default=CHAMBER_DENSITY_PERCENTILES,
-        help=(
-            "Percentile range for --density-style chamber. Lower HIGH values saturate the source "
-            "hotspot and reveal more chamber/bulk variation, e.g. '--density-percentiles 5 90'."
-        ),
-    )
-    parser.add_argument("--xlabel", default="x [cm]")
-    parser.add_argument("--ylabel", default="y [cm]")
-    args = parser.parse_args()
-    try:
-        _validate_density_display_mode(
+    args = build_parser().parse_args()
+    if args.command == "diagnostics":
+        plot_last_timestep(
+            args.exodus,
+            args.output,
+            timestep=args.timestep,
+            time=args.time,
+            bulk_margin_cm=args.bulk_margin_cm,
             density_growth=args.density_growth,
             density_contrast=args.density_contrast,
             density_style=args.density_style,
+            density_percentiles=tuple(args.density_percentiles),
+            xlabel="X [cm]",
+            ylabel="Z [cm]",
         )
-    except ValueError as error:
-        parser.error(str(error))
-    plot_last_timestep(
-        args.exodus,
-        args.output,
-        timestep=args.timestep,
-        time=args.time,
-        bulk_margin_cm=args.bulk_margin_cm,
-        density_growth=args.density_growth,
-        density_contrast=args.density_contrast,
-        density_style=args.density_style,
-        density_percentiles=tuple(args.density_percentiles),
-        xlabel=args.xlabel,
-        ylabel=args.ylabel,
-    )
+    elif args.command == "ion-flux":
+        plot_ion_flux(
+            args.exodus,
+            args.output,
+            target_time=args.time,
+            z_planes_cm=tuple(args.z_cm),
+            wafer_x_cm=tuple(args.wafer_x_cm),
+        )
+        print(f"wrote {args.output}")
+    else:
+        compare_ion_flux(
+            args.case,
+            args.output,
+            args.csv,
+            target_time=args.time,
+            z_planes_cm=tuple(args.z_cm),
+        )
+        print(f"wrote {args.output}")
+        print(f"wrote {args.csv}")
 
 
 if __name__ == "__main__":
