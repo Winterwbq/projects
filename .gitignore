@@ -21,4 +21,3 @@ cu_pvd_hybrid_2d/post
 cu_pvd_hybrid_2d/output
 cu_pvd_hybrid_2d/zapdos_templates/**/*.gz
 cu_pvd_hybrid_2d/zapdos_templates/**/*.rd
-cu_pvd_hybrid_2d/zapdos_templates/**/*.e
