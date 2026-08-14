@@ -1,0 +1,64 @@
+{
+  "case": "four_coil_left_bend",
+  "coordinate_system": "cartesian_x_z",
+  "domain_m": {
+    "x": [
+      0.0,
+      0.25
+    ],
+    "z": [
+      0.0,
+      0.3
+    ]
+  },
+  "grid": {
+    "nx": 101,
+    "nz": 161
+  },
+  "bfield_magnitude_range_t": [
+    0.0003241602204704653,
+    0.10000000000000002
+  ],
+  "bfield_sha256": {
+    "Bx_T.tbl": "5598aa137d68173cd83bbfbb87d39554a46d8d34c3dcc95996936859073b4f78",
+    "By_T.tbl": "f5f2208952673956cd93840b5dc51f6cbb1d193dfd2b69bbbec77567c2f05ee1"
+  },
+  "powered_target_x_m": [
+    0.19,
+    0.22
+  ],
+  "chamber_axis_x_m": 0.125,
+  "magnetic_pole_centers_m": [
+    0.19499999999999998,
+    0.215
+  ],
+  "coil_current_weights_a": [
+    3.30100606,
+    -19.60088785,
+    0.75548106,
+    28.05815274
+  ],
+  "field_assembly": "right_side_source_plus_full_cylinder_four_coil",
+  "coil_symmetry": {
+    "Bx": "odd",
+    "Bz": "even"
+  },
+  "optimization": {
+    "objective": "target_to_wafer_left_bend",
+    "launch_interval_x_m": [
+      0.192,
+      0.218
+    ],
+    "arrival_interval_x_m": [
+      0.07,
+      0.17
+    ],
+    "allowed_current_polarity": "signed_all_four_coils",
+    "reference_weights_a": [
+      44.6,
+      12.6,
+      3.2,
+      -5.2
+    ]
+  }
+}

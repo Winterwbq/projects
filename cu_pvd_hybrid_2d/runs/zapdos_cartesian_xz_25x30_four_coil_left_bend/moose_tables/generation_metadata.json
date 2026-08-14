@@ -1,0 +1,28 @@
+{
+  "case": "four_coil_left_bend",
+  "coordinate_system": "cartesian_x_z_per_unit_y_depth",
+  "paired_bfield_directory": "/Users/bingqingwang/projects/cu_pvd_hybrid_2d/runs/zapdos_cartesian_xz_25x30_four_coil_left_bend/moose_tables",
+  "bfield_sha256": {
+    "Bx_T.tbl": "5598aa137d68173cd83bbfbb87d39554a46d8d34c3dcc95996936859073b4f78",
+    "By_T.tbl": "f5f2208952673956cd93840b5dc51f6cbb1d193dfd2b69bbbec77567c2f05ee1"
+  },
+  "neutral_table": "/Users/bingqingwang/projects/cu_pvd_hybrid_2d/runs/zapdos_cartesian_xz_25x30_neutral/moose_tables/n_Cu_m3.tbl",
+  "neutral_sha256": "d79b0499f0abe5981d5f54c1e406b6d82114c50c33c23ba11d52d09003d30e14",
+  "transport_settings": {
+    "direction_model": "bfield_guided",
+    "local_fraction": 0.95,
+    "local_attenuation_length_m": 0.006,
+    "guided_attenuation_length_m": 0.04,
+    "spread_angle_degrees": 8.0,
+    "bfield_guidance_fraction": 1.0,
+    "transition_field_t": 0.001,
+    "see_magnitude_scale": 1.2
+  },
+  "plasma_efficiency": 0.9997204056853644,
+  "termination_counts": {
+    "max_path": 41,
+    "boundary": 41
+  },
+  "see_unscaled_area_integral_m": 0.029991612170560927,
+  "see_area_integral_m": 0.035989934604673104
+}

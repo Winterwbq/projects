@@ -670,6 +670,57 @@ def _nearest_z_profiles(
     return profiles
 
 
+def _uniform_quiver_indices(
+    x: np.ndarray,
+    z: np.ndarray,
+    *,
+    max_arrows: int = 600,
+) -> np.ndarray:
+    """Select Cartesian cell centers uniformly across both plot dimensions."""
+    x = np.asarray(x, dtype=float)
+    z = np.asarray(z, dtype=float)
+    if x.shape != z.shape:
+        raise ValueError("x and z coordinates must have matching shapes")
+    if max_arrows < 1:
+        raise ValueError("max_arrows must be positive")
+
+    finite_indices = np.flatnonzero(np.isfinite(x) & np.isfinite(z))
+    if finite_indices.size == 0:
+        return np.asarray([], dtype=int)
+    unique_x, x_inverse = np.unique(x[finite_indices], return_inverse=True)
+    unique_z, z_inverse = np.unique(z[finite_indices], return_inverse=True)
+
+    x_span = float(np.ptp(unique_x))
+    z_span = float(np.ptp(unique_z))
+    if x_span > 0.0 and z_span > 0.0:
+        aspect_ratio = x_span / z_span
+    else:
+        aspect_ratio = unique_x.size / unique_z.size
+    x_count = min(
+        unique_x.size,
+        max(1, int(round(np.sqrt(max_arrows * aspect_ratio)))),
+    )
+    z_count = min(unique_z.size, max(1, max_arrows // x_count))
+    x_count = min(unique_x.size, max(1, max_arrows // z_count))
+    z_count = min(unique_z.size, max(1, max_arrows // x_count))
+
+    def nearest_axis_indices(values: np.ndarray, count: int) -> np.ndarray:
+        if count >= values.size:
+            return np.arange(values.size)
+        targets = np.linspace(values[0], values[-1], count)
+        upper = np.clip(np.searchsorted(values, targets), 0, values.size - 1)
+        lower = np.maximum(upper - 1, 0)
+        choose_lower = np.abs(targets - values[lower]) <= np.abs(values[upper] - targets)
+        return np.unique(np.where(choose_lower, lower, upper))
+
+    selected_x = nearest_axis_indices(unique_x, x_count)
+    selected_z = nearest_axis_indices(unique_z, z_count)
+    index_grid = np.full((unique_z.size, unique_x.size), -1, dtype=int)
+    index_grid[z_inverse, x_inverse] = finite_indices
+    selected = index_grid[np.ix_(selected_z, selected_x)].ravel()
+    return selected[selected >= 0]
+
+
 def plot_ion_flux(
     exodus_path: Path | str,
     output_path: Path | str,
@@ -710,13 +761,13 @@ def plot_ion_flux(
     )
     figure.colorbar(image, ax=axes[0], label=r"$|\Gamma_{Cu+}|$ [m$^{-2}$ s$^{-1}$]")
     axes[0].set_title("Cu$^+$ flux magnitude")
-    stride = max(1, magnitude.size // 600)
+    quiver_indices = _uniform_quiver_indices(x_cm, z_cm, max_arrows=600)
     safe = np.maximum(magnitude, np.finfo(float).tiny)
     axes[0].quiver(
-        x_cm[::stride],
-        z_cm[::stride],
-        np.asarray(flux["gamma_x"])[::stride] / safe[::stride],
-        np.asarray(flux["gamma_z"])[::stride] / safe[::stride],
+        x_cm[quiver_indices],
+        z_cm[quiver_indices],
+        np.asarray(flux["gamma_x"])[quiver_indices] / safe[quiver_indices],
+        np.asarray(flux["gamma_z"])[quiver_indices] / safe[quiver_indices],
         color="white",
         scale=35,
         width=0.002,

@@ -11,7 +11,12 @@ import numpy as np
 
 
 ROOT = Path(__file__).resolve().parents[1]
-CASE_NAMES = ("source_only", "four_coil", "four_coil_img3092")
+CASE_NAMES = (
+    "source_only",
+    "four_coil",
+    "four_coil_left_bend",
+    "four_coil_img3092",
+)
 CASE_TABLE_DIRS = {
     case: ROOT / "runs" / f"zapdos_cartesian_xz_25x30_{case}" / "moose_tables"
     for case in CASE_NAMES
@@ -26,6 +31,7 @@ DEFAULT_NEUTRAL_TABLE = (
 CASE_TITLES = {
     "source_only": "Source only",
     "four_coil": "Standard four coil",
+    "four_coil_left_bend": "Left-bending four coil",
     "four_coil_img3092": "IMG-3092 four coil",
 }
 LEGACY_BFIELD_LEVELS_G = np.asarray(
@@ -193,7 +199,7 @@ def plot_input_maps(
         z * 100.0,
         bx.T,
         bz.T,
-        color="white",
+        color="black" if case == "four_coil_left_bend" else "white",
         density=1.2,
         linewidth=0.65,
         arrowsize=0.7,
@@ -224,7 +230,7 @@ def plot_input_maps(
         z * 100.0,
         bx.T,
         bz.T,
-        color="white",
+        color="black" if case == "four_coil_left_bend" else "white",
         density=1.0,
         linewidth=0.55,
         arrowsize=0.65,

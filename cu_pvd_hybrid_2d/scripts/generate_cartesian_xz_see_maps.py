@@ -11,7 +11,12 @@ import numpy as np
 
 
 ROOT = Path(__file__).resolve().parents[1]
-CASE_NAMES = ("source_only", "four_coil", "four_coil_img3092")
+CASE_NAMES = (
+    "source_only",
+    "four_coil",
+    "four_coil_left_bend",
+    "four_coil_img3092",
+)
 CASE_TABLE_DIRS = {
     case: ROOT / "runs" / f"zapdos_cartesian_xz_25x30_{case}" / "moose_tables"
     for case in CASE_NAMES
@@ -46,6 +51,16 @@ CASE_SETTINGS: dict[str, dict[str, float | str]] = {
         "local_fraction": 0.95,
         "local_attenuation_length_m": 0.006,
         "guided_attenuation_length_m": 0.20,
+        "spread_angle_degrees": 8.0,
+        "bfield_guidance_fraction": 1.0,
+        "transition_field_t": 0.001,
+        "see_magnitude_scale": 1.2,
+    },
+    "four_coil_left_bend": {
+        "direction_model": "bfield_guided",
+        "local_fraction": 0.95,
+        "local_attenuation_length_m": 0.006,
+        "guided_attenuation_length_m": 0.04,
         "spread_angle_degrees": 8.0,
         "bfield_guidance_fraction": 1.0,
         "transition_field_t": 0.001,

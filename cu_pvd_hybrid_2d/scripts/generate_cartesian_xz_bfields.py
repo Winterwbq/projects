@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the three supported Cartesian X-Z magnetic-field table pairs."""
+"""Generate the supported Cartesian X-Z magnetic-field table pairs."""
 from __future__ import annotations
 
 import argparse
@@ -11,7 +11,12 @@ import numpy as np
 
 
 ROOT = Path(__file__).resolve().parents[1]
-CASE_NAMES = ("source_only", "four_coil", "four_coil_img3092")
+CASE_NAMES = (
+    "source_only",
+    "four_coil",
+    "four_coil_left_bend",
+    "four_coil_img3092",
+)
 CASE_OUTPUT_DIRS = {
     case: ROOT / "runs" / f"zapdos_cartesian_xz_25x30_{case}" / "moose_tables"
     for case in CASE_NAMES
@@ -19,6 +24,7 @@ CASE_OUTPUT_DIRS = {
 
 X_MIN_M = 0.0
 X_MAX_M = 0.25
+CHAMBER_AXIS_X_M = 0.5 * (X_MIN_M + X_MAX_M)
 Z_MIN_M = 0.0
 Z_MAX_M = 0.30
 SOURCE_CENTER_M = 0.205
@@ -41,6 +47,7 @@ COIL_Z_M = (0.250, 0.150, 0.055, 0.030)
 COIL_SOFTENING_M = 0.006
 COIL_PEAK_T = 227.58 * GAUSS_TO_TESLA
 STANDARD_COIL_WEIGHTS = (44.6, 12.6, 3.2, -5.2)
+LEFT_BEND_COIL_WEIGHTS = (3.30100606, -19.60088785, 0.75548106, 28.05815274)
 IMAGE_COIL_WEIGHTS = (44.6, 12.6, 3.2, 13.7)
 
 STANDARD_GUIDE_Z_M = 1.0e-3 * np.asarray(
@@ -262,11 +269,15 @@ def _interpolate_support(
     return result
 
 
-def _build_standard_coil_field(
-    x: np.ndarray, z: np.ndarray, *, quadrature: int
+def _build_standard_profile_coil_field(
+    x: np.ndarray,
+    z: np.ndarray,
+    weights: tuple[float, float, float, float],
+    *,
+    quadrature: int,
 ) -> tuple[np.ndarray, np.ndarray]:
     support_x, support_bx, support_bz = _raw_coil_field(
-        z, STANDARD_COIL_WEIGHTS, quadrature=quadrature
+        z, weights, quadrature=quadrature
     )
     bx = _interpolate_support(support_x, support_bx, x)
     bz = _interpolate_support(support_x, support_bz, x)
@@ -278,6 +289,49 @@ def _build_standard_coil_field(
     xx, zz = np.meshgrid(x, z, indexing="ij")
     dome = 45.0 * GAUSS_TO_TESLA * np.exp(
         -0.5 * (((xx - 0.125) / 0.150) ** 2 + ((zz - 0.245) / 0.055) ** 2)
+    )
+    magnitude = np.hypot(bx, bz)
+    bx += dome * bx / np.maximum(magnitude, np.finfo(float).tiny)
+    bz += dome * bz / np.maximum(magnitude, np.finfo(float).tiny)
+    magnitude = np.hypot(bx, bz)
+    cap = np.minimum(1.0, COIL_PEAK_T / np.maximum(magnitude, np.finfo(float).tiny))
+    return bx * cap, bz * cap
+
+
+def _build_standard_coil_field(
+    x: np.ndarray, z: np.ndarray, *, quadrature: int
+) -> tuple[np.ndarray, np.ndarray]:
+    return _build_standard_profile_coil_field(
+        x, z, STANDARD_COIL_WEIGHTS, quadrature=quadrature
+    )
+
+
+def _build_left_bend_coil_field(
+    x: np.ndarray, z: np.ndarray, *, quadrature: int
+) -> tuple[np.ndarray, np.ndarray]:
+    support_x, support_br, support_bz = _raw_coil_field(
+        z, LEFT_BEND_COIL_WEIGHTS, quadrature=quadrature
+    )
+    radial_x = np.abs(x - CHAMBER_AXIS_X_M)
+    br = _interpolate_support(support_x, support_br, radial_x)
+    bz = _interpolate_support(support_x, support_bz, radial_x)
+    bx = np.sign(x - CHAMBER_AXIS_X_M)[:, None] * br
+
+    bulk = (radial_x >= 0.020) & (radial_x <= 0.120)
+    median = np.median(np.hypot(bx, bz)[bulk], axis=0)
+    desired = GAUSS_TO_TESLA * _smooth_interpolate(
+        z, STANDARD_GUIDE_Z_M, STANDARD_GUIDE_G
+    )
+    bx *= (desired / median)[None, :]
+    bz *= (desired / median)[None, :]
+
+    xx, zz = np.meshgrid(x, z, indexing="ij")
+    dome = 45.0 * GAUSS_TO_TESLA * np.exp(
+        -0.5
+        * (
+            ((xx - CHAMBER_AXIS_X_M) / 0.150) ** 2
+            + ((zz - 0.245) / 0.055) ** 2
+        )
     )
     magnitude = np.hypot(bx, bz)
     bx += dome * bx / np.maximum(magnitude, np.finfo(float).tiny)
@@ -327,6 +381,11 @@ def build_case_bfield(
     source_bx, source_bz = build_source_only_bfield(x_axis, z_axis)
     if case == "source_only":
         return _limit_magnitude(source_bx, source_bz)
+    if case == "four_coil_left_bend":
+        coil_bx, coil_bz = _build_left_bend_coil_field(
+            x_axis, z_axis, quadrature=coil_quadrature
+        )
+        return _limit_magnitude(source_bx + coil_bx, source_bz + coil_bz)
     if case == "four_coil":
         coil_bx, coil_bz = _build_standard_coil_field(
             x_axis, z_axis, quadrature=coil_quadrature
@@ -379,6 +438,27 @@ def generate_bfield_case(
             "By_T.tbl": hashlib.sha256(bz_path.read_bytes()).hexdigest(),
         },
     }
+    if case == "four_coil_left_bend":
+        metadata.update(
+            {
+                "powered_target_x_m": [0.19, 0.22],
+                "chamber_axis_x_m": CHAMBER_AXIS_X_M,
+                "magnetic_pole_centers_m": [
+                    SOURCE_CENTER_M - SOURCE_POLE_OFFSET_M,
+                    SOURCE_CENTER_M + SOURCE_POLE_OFFSET_M,
+                ],
+                "coil_current_weights_a": list(LEFT_BEND_COIL_WEIGHTS),
+                "field_assembly": "right_side_source_plus_full_cylinder_four_coil",
+                "coil_symmetry": {"Bx": "odd", "Bz": "even"},
+                "optimization": {
+                    "objective": "target_to_wafer_left_bend",
+                    "launch_interval_x_m": [0.192, 0.218],
+                    "arrival_interval_x_m": [0.07, 0.17],
+                    "allowed_current_polarity": "signed_all_four_coils",
+                    "reference_weights_a": list(STANDARD_COIL_WEIGHTS),
+                },
+            }
+        )
     (directory / "bfield_metadata.json").write_text(
         json.dumps(metadata, indent=2) + "\n", encoding="utf-8"
     )
